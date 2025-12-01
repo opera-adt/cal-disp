@@ -3,8 +3,8 @@ Calibration for OPERA DISP SAS repository
 
 
 # DISP-S1
-[![Pytest and build docker image](https://github.com/opera-adt/disp-s1/actions/workflows/test-build-push.yml/badge.svg?branch=main)]()
-[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/opera-adt/disp-s1/main.svg)]()
+[![Pytest and build docker image](https://github.com/opera-adt/cal-disp/actions/workflows/test-build-push.yml/badge.svg?branch=main)]()
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/opera-adt/cal-disp/main.svg)]()
 
 Calibration workflows for OPERA DISP products.
 
