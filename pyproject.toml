@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools>=64.0", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cal-disp"
+description = "OPERA DISP calibration workflows"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.11"
+
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+license = { file = "LICENSE.txt" }
+
+# The version will be written into a version.py upon install, auto-generated
+# see section: setuptools_scm
+# https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html#dynamic-metadata
+# dependencies will be read from text files
+dynamic = ["version", "dependencies", "optional-dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/opera-adt/cal-disp1"
+"Bug Tracker" = "https://github.com/opera-adt/cal-disp/issues"
+
+# Entry points for the command line interface
+[project.scripts]
+cal-disp = "cal_disp.cli:cli_app"
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+# extra requirements: `pip install cal_disp[docs]` or `pip install .[docs]`
+[tool.setuptools.dynamic.optional-dependencies.docs]
+file = ["docs/requirements.txt"]
+[tool.setuptools.dynamic.optional-dependencies.test]
+file = ["tests/requirements.txt"]
+
+[tool.setuptools_scm]
+# https://github.com/pypa/setuptools_scm#configuration-parameters
+write_to = "src/cal_disp/_version.py"
+# https://github.com/pypa/setuptools_scm#version-number-construction
+version_scheme = "no-guess-dev" # Will not guess the next version
+
+
+[tool.ruff]
+src = ["src"]
+unsafe-fixes = true
+
+[tool.ruff.lint]
+select = [
+  "A",   # flake8-builtins
+  "ARG", # flake8-unused-arguments
+  "C4",  # flake8-comprehensions
+  "D",   # pydocstyle
+  "E",   # pycodestyle (errors)
+  "W",   # pycodestyle (warnings)
+  "EXE", # flake8-executable
+  "F",   # Pyflakes
+  "I",   # isort
+  "ISC", # flake8-implicit-str-concat
+  "N",   # pep8-naming
+  "PTH", # flake8-use-pathlib
+  "PYI", # flake8-pyi
+]
+
+ignore = [
+  "D100",   # Missing docstring in public module
+  "D104",   # Missing docstring in public package
+  "D105",   # Missing docstring in magic method
+  "D203",   # 1 blank line required before class docstring
+  "D213",   # Multi-line docstring summary should start at the second line
+  "N803",   # Argument name should be lowercase
+  "N806",   # Variable _ in function should be lowercase
+  "PIE796", # Non-unique values are redundant and likely a mistake.
+  "PLR",    # Pylint Refactor
+  "PTH123", # `open()` should be replaced by `Path.open()`
+  "PTH207", # "Replace `glob` with `Path.glob` or `Path.rglob`
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F403"]
+"tests/**" = ["D", "N", "PTH"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+
+[tool.pytest.ini_options]
+doctest_optionflags = "NORMALIZE_WHITESPACE NUMBER"
+addopts = " --randomly-seed=1234 --ignore=scripts --ignore=docs --ignore=data"
+filterwarnings = [
+  "error",
+  # DeprecationWarning thrown in pkg_resources for older numba verions and llvmlite
+  "ignore:.*pkg_resources.*",
+  "ignore:h5py is running against HDF5.*:UserWarning",
+  "ignore:Exception ignored in.* <_io.FileIO.*:pytest.PytestUnraisableExceptionWarning"
+]
