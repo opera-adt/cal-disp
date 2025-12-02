@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -12,8 +11,6 @@ from pydantic import (
 )
 
 from ._yaml import YamlModel
-
-logger = logging.getLogger(__name__)
 
 __all__ = [
     "InputOptions",
