@@ -84,21 +84,39 @@ class DynamicAncillaryFileGroup(YamlModel):
         ),
     )
 
-    troposphere_files: List[Path] = Field(
-        default_factory=list,
-        alias="tropo_files",
+    reference_tropo_files: Optional[List[Path]] = Field(
+        default=None,
+        alias="ref_tropo_files",
         description=(
-            "Paths to the TROPO files (1 for reference and 1 for secondary date)."
-            " If none provided, tropospheric correction in calibration is skipped."
+            "Path to the TROPO file for the reference date."
+            " If not provided, tropospheric correction for reference is skipped."
         ),
     )
 
-    ionosphere_files: List[Path] = Field(
-        default_factory=list,
-        alias="iono_files",
+    secondary_tropo_files: Optional[List[Path]] = Field(
+        default=None,
+        alias="sec_tropo_files",
         description=(
-            "Paths to the IONO files (1 for reference and 1 for secondary date)."
-            " If none provided, ionospheric correction in calibration is skipped."
+            "Path to the TROPO file for the secondary date."
+            " If not provided, tropospheric correction for secondary is skipped."
+        ),
+    )
+
+    reference_iono_files: Optional[List[Path]] = Field(
+        default=None,
+        alias="ref_iono_files",
+        description=(
+            "Path to the IONO file for the reference date."
+            " If not provided, ionosphere correction for reference is skipped."
+        ),
+    )
+
+    secondary_iono_files: Optional[List[Path]] = Field(
+        default=None,
+        alias="sec_iono_files",
+        description=(
+            "Path to the IONO file for the secondary date."
+            " If not provided, ionosphere correction for secondary is skipped."
         ),
     )
 
@@ -111,7 +129,12 @@ class DynamicAncillaryFileGroup(YamlModel):
     )
 
     @field_validator(
-        "troposphere_files", "ionosphere_files", "tiles_files", mode="before"
+        "reference_tropo_files",
+        "secondary_tropo_files",
+        "reference_iono_files",
+        "secondary_iono_files",
+        "tiles_files",
+        mode="before",
     )
     @classmethod
     def _validate_file_lists(cls, v):
