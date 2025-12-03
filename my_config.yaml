@@ -1,0 +1,14 @@
+# REQUIRED: Name of the configuration.
+#   Type: string.
+name: DemoConfig
+# Version number of the configuration.
+#   Type: integer.
+version: 2
+# Whether this config is enabled.
+#   Type: boolean.
+enabled: false
+# Optional list of tags.
+#   Type: array | None.
+tags:
+  - test
+  - yaml

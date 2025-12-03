@@ -3,9 +3,6 @@ Calibration for OPERA DISP SAS repository
 
 
 # DISP-S1
-[![Pytest and build docker image](https://github.com/opera-adt/cal-disp/actions/workflows/test-build-push.yml/badge.svg?branch=main)]()
-[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/opera-adt/cal-disp/main.svg)]()
-
 Calibration workflows for OPERA DISP products.
 
 Creates the science application software (SAS) using the [Venti]() library.
@@ -17,7 +14,7 @@ Creates the science application software (SAS) using the [Venti]() library.
 ### Prerequisite installs
 1. Download source code:
 ```bash
-git clone https://github.com/opera-adt/Venti.git
+git clone https://github.com/opera-adt/venti.git
 git clone https://github.com/opera-adt/cal-disp.git
 ```
 2. Install dependencies, either to a new environment:

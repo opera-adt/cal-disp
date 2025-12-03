@@ -2,4 +2,3 @@
 .mypy_cache
 build/
 data/
-tests/data/delivery_data_small

@@ -11,6 +11,10 @@ input_file_group:
   #   Type: string | path.
   calibration_reference_grid:
 
+  # REQUIRED: Frame ID of the DISP frame.
+  #   Type: integer.
+  frame_id:
+
 dynamic_ancillary_file_group:
   # REQUIRED: Path to file containing SAS algorithm parameters.
   #   Type: string | path.
@@ -51,7 +55,7 @@ static_ancillary_file_group:
   #   Type: string | path | null.
   defo_area_database_json:
 
-  # Optional: JSON file containing list of events (earthquakes, volcanic activity) for each frame.
+  # Optional: GEOJSON file containing list of events (earthquakes, volcanic activity) for each frame.
   #   Type: string | path | null.
   event_database_json:
 
