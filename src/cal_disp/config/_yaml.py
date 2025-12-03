@@ -5,7 +5,7 @@ import sys
 import textwrap
 from io import StringIO
 from os import PathLike
-from typing import Optional, TextIO, Union
+from typing import Any, Dict, Optional, TextIO, Union
 
 from pydantic import BaseModel
 from ruamel.yaml import YAML
@@ -122,7 +122,7 @@ class YamlModel(BaseModel):
 
 def _add_comments(
     loaded_yaml: CommentedMap,
-    schema: dict,
+    schema: Dict[str, Any],
     indent: int = 0,
     definitions: Optional[dict] = None,
     # variable specifying how much to indent per level
@@ -165,9 +165,10 @@ def _add_comments(
                 continue
 
         # add each description along with the type information
+        desc = val.get("description", "No description.")
         desc = "\n".join(
             textwrap.wrap(
-                f"{val['description']}.",
+                f"{desc}.",
                 width=90,
                 subsequent_indent=" " * indent_per_level,
             )
@@ -175,18 +176,18 @@ def _add_comments(
         if "anyOf" in val:
             #   'anyOf': [{'type': 'string'}, {'type': 'null'}],
             # Join the options with a pipe, like Python types
-            type_str = " | ".join(d["type"] for d in val["anyOf"])
-            type_str = type_str.replace("null", "None")
+            type_str = " | ".join(t.get("type", "None") for t in val["anyOf"]).replace(
+                "null", "None"
+            )
         elif "const" in val:
             type_str = val["const"]
         else:
-            type_str = val["type"]
+            type_str = val.get("type", "Any")
         type_line = f"\n  Type: {type_str}."
         choices = f"\n  Options: {val['enum']}." if "enum" in val else ""
 
         # Combine the description/type/choices as the YAML comment
-        comment = f"{desc}{type_line}{choices}"
-        comment = comment.replace("..", ".")  # Remove double periods
+        comment = f"{desc}{type_line}{choices}".replace("..", ".")
 
         # Prepend the required label for fields that are required
         is_required = key in schema.get("required", [])
@@ -195,4 +196,8 @@ def _add_comments(
 
         # This method comes from here
         # https://yaml.readthedocs.io/en/latest/detail.html#round-trip-including-comments
-        loaded_yaml.yaml_set_comment_before_after_key(key, comment, indent=indent)
+        loaded_yaml.yaml_set_comment_before_after_key(
+            key,
+            comment,
+            indent=indent,
+        )
