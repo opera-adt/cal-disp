@@ -5,17 +5,41 @@ import sys
 import textwrap
 from io import StringIO
 from os import PathLike
-from typing import Any, Dict, Optional, TextIO, Union
+from pathlib import Path
+from typing import Any, Dict, List, Optional, TextIO, TypedDict, Union, cast
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 
 Filename = Union[str, PathLike]
 
+# Standard configs
+STRICT_CONFIG = ConfigDict(
+    extra="forbid",
+    validate_assignment=True,
+)
+
+STRICT_CONFIG_WITH_ALIASES = ConfigDict(
+    extra="forbid",
+    validate_assignment=True,
+    populate_by_name=True,
+)
+
+
+class ValidationResult(TypedDict):
+    """Standard validation result structure."""
+
+    # Using dict subclass instead of TypedDict for runtime flexibility
+    ready: bool
+    errors: List[str]
+    warnings: List[str]
+
 
 class YamlModel(BaseModel):
     """Pydantic model that can be exported to yaml."""
+
+    model_config = STRICT_CONFIG
 
     def to_yaml(
         self,
@@ -118,6 +142,173 @@ class YamlModel(BaseModel):
         ss = StringIO()
         y.dump(json.loads(self.model_dump_json(by_alias=by_alias)), ss)
         return y.load(ss.getvalue())
+
+    def get_all_file_paths(
+        self, include_none: bool = False, flatten_lists: bool = True
+    ) -> Dict[str, Union[Path, List[Path]]]:
+        """Get all Path fields from the model.
+
+        Parameters
+        ----------
+        include_none : bool, default=False
+            Include fields with None values.
+        flatten_lists : bool, default=True
+            Flatten list fields to individual entries with indices.
+
+        Returns
+        -------
+        dict
+            Mapping of field names to Path objects.
+
+        """
+        files: Dict[str, Path | list[Path]] = {}
+
+        for field_name, field_info in self.model_fields.items():
+            value = getattr(self, field_name)
+
+            # Skip None values if requested
+            if value is None and not include_none:
+                continue
+
+            # Check if field is Path or Optional[Path]
+            if self._is_path_field(field_info):
+                if value is not None:
+                    files[field_name] = value
+
+            # Check if field is List[Path]
+            elif self._is_path_list_field(field_info):
+                if value:
+                    if flatten_lists:
+                        for i, path in enumerate(value):
+                            files[f"{field_name}[{i}]"] = path
+                    else:
+                        files[field_name] = value
+
+        return files
+
+    @staticmethod
+    def _is_path_field(field_info) -> bool:
+        """Check if field is a Path type."""
+        from pathlib import Path
+        from typing import Union, get_args, get_origin
+
+        annotation = field_info.annotation
+
+        # Handle Annotated[Path, ...]
+        if get_origin(annotation) is not None:
+            # Check if it's Annotated
+            if hasattr(annotation, "__metadata__"):
+                # Get the actual type from Annotated
+                args = get_args(annotation)
+                if args:
+                    annotation = args[0]
+
+        # Direct Path type
+        if annotation is Path:
+            return True
+
+        # Optional[Path] or Union[Path, None]
+        origin = get_origin(annotation)
+        if origin is Union:
+            args = get_args(annotation)
+            return Path in args or any(arg is Path for arg in args)
+
+        return False
+
+    @staticmethod
+    def _is_path_list_field(field_info) -> bool:
+        """Check if field is a List[Path] type."""
+        from pathlib import Path
+        from typing import Union, get_args, get_origin
+
+        annotation = field_info.annotation
+        origin = get_origin(annotation)
+
+        # Check if it's Optional[List[Path]]
+        if origin is Union:
+            args = get_args(annotation)
+            for arg in args:
+                if arg is type(None):
+                    continue
+                if get_origin(arg) in (list, List):
+                    list_args = get_args(arg)
+                    if list_args:
+                        first_arg = list_args[0]
+                        if first_arg is Path:
+                            return True
+
+        # Check if it's List[Path]
+        if origin in (list, List):
+            args = get_args(annotation)
+            if not args:
+                return False
+            first_arg = args[0]
+            is_path_type: bool = first_arg is Path
+            return is_path_type
+
+        return False
+
+    def validate_files_exist(
+        self, raise_on_missing: bool = False
+    ) -> Dict[str, Dict[str, Any]]:
+        """Validate all file paths exist on disk.
+
+        Parameters
+        ----------
+        raise_on_missing : bool, default=False
+            If True, raise FileNotFoundError on first missing file.
+
+        Returns
+        -------
+        dict
+            Detailed status for each file including existence, size, etc.
+
+        Raises
+        ------
+        FileNotFoundError
+            If raise_on_missing=True and any file is missing.
+
+        """
+        results: Dict[str, Dict[str, Any]] = {}
+
+        # flatten_lists=True guarantees Dict[str, Path]
+        file_paths: Dict[str, Path] = cast(
+            Dict[str, Path], self.get_all_file_paths(flatten_lists=True)
+        )
+
+        for field_name, path in file_paths.items():
+            exists = path.exists()
+
+            if not exists and raise_on_missing:
+                raise FileNotFoundError(
+                    f"Required file not found: {field_name} = {path}"
+                )
+
+            results[field_name] = {
+                "exists": exists,
+                "is_file": path.is_file() if exists else None,
+                "is_dir": path.is_dir() if exists else None,
+                "size_bytes": path.stat().st_size if exists else None,
+                "absolute_path": str(path.absolute()),
+            }
+
+        return results
+
+    def validate_ready_to_run(self) -> ValidationResult:
+        """Check if configuration is ready to run."""
+        return ValidationResult(ready=True, errors=[], warnings=[])
+
+    def get_missing_files(self) -> List[str]:
+        """Get list of missing file paths."""
+        return [
+            f"{name}: {info['absolute_path']}"
+            for name, info in self.validate_files_exist().items()
+            if not info["exists"]
+        ]
+
+    def all_files_exist(self) -> bool:
+        """Check if all files exist."""
+        return len(self.get_missing_files()) == 0
 
 
 def _add_comments(

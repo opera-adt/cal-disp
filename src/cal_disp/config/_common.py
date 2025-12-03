@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 from pydantic import ConfigDict, Field, field_validator
 
-from ._utils import _read_file_list_or_glob
-from ._yaml import YamlModel
+from ._utils import OptionalPath, RequiredPath, _read_file_list_or_glob
+from ._yaml import STRICT_CONFIG_WITH_ALIASES, YamlModel
 
 
 class InputFileGroup(YamlModel):
@@ -21,12 +21,12 @@ class InputFileGroup(YamlModel):
 
     """
 
-    disp_file: Path = Field(
+    disp_file: RequiredPath = Field(
         ...,
         description="Path to DISP file.",
     )
 
-    calibration_reference_grid: Path = Field(
+    calibration_reference_grid: RequiredPath = Field(
         ...,
         description="Path to UNR calibration reference file [parquet].",
     )
@@ -35,14 +35,6 @@ class InputFileGroup(YamlModel):
         ...,
         description="Frame ID of the DISP frame.",
     )
-
-    @field_validator("disp_file", "calibration_reference_grid", mode="before")
-    @classmethod
-    def _validate_paths(cls, v: Union[str, Path]) -> Path:
-        """Validate and convert string paths to Path objects."""
-        if isinstance(v, str):
-            return Path(v)
-        return v
 
     model_config = ConfigDict(
         extra="forbid",
@@ -69,12 +61,12 @@ class DynamicAncillaryFileGroup(YamlModel):
 
     """
 
-    algorithm_parameters_file: Path = Field(
+    algorithm_parameters_file: RequiredPath = Field(
         ...,
         description="Path to file containing SAS algorithm parameters.",
     )
 
-    geometry_file: Path = Field(
+    geometry_file: RequiredPath = Field(
         ...,
         alias="static_layers_file",
         description=(
@@ -83,7 +75,7 @@ class DynamicAncillaryFileGroup(YamlModel):
         ),
     )
 
-    mask_file: Optional[Path] = Field(
+    mask_file: OptionalPath = Field(
         default=None,
         description=(
             "Optional Byte mask file used to ignore low correlation/bad data (e.g water"
@@ -119,20 +111,6 @@ class DynamicAncillaryFileGroup(YamlModel):
     )
 
     @field_validator(
-        "algorithm_parameters_file", "geometry_file", "mask_file", mode="before"
-    )
-    @classmethod
-    def _validate_paths(cls, v: Union[str, Path, None]) -> Optional[Path]:
-        """Validate and convert string paths to Path objects."""
-        if v is None:
-            return None
-        if isinstance(v, str):
-            if not v.strip():
-                raise ValueError("Path cannot be an empty string")
-            return Path(v)
-        return v
-
-    @field_validator(
         "troposphere_files", "ionosphere_files", "tiles_files", mode="before"
     )
     @classmethod
@@ -140,39 +118,10 @@ class DynamicAncillaryFileGroup(YamlModel):
         """Validate and process file lists or glob patterns."""
         return _read_file_list_or_glob(cls, v)
 
-    def get_all_files(self) -> Dict[str, Path]:
-        """Get all non-None file paths.
+    def get_all_files(self) -> Dict[str, Path | list[Path]]:
+        return self.get_all_file_paths(flatten_lists=True)
 
-        Returns
-        -------
-        dict
-            Dictionary mapping field names to Path objects for all set files.
-
-        """
-        files = {}
-
-        # Single file fields
-        for field_name in ["algorithm_parameters_file", "geometry_file", "mask_file"]:
-            value = getattr(self, field_name)
-            if value is not None:
-                files[field_name] = value
-
-        # List fields
-        if self.troposphere_files:
-            for i, path in enumerate(self.troposphere_files):
-                files[f"troposphere_files[{i}]"] = path
-
-        if self.ionosphere_files:
-            for i, path in enumerate(self.ionosphere_files):
-                files[f"ionosphere_files[{i}]"] = path
-
-        if self.tiles_files:
-            for i, path in enumerate(self.tiles_files):
-                files[f"tiles_files[{i}]"] = path
-
-        return files
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = STRICT_CONFIG_WITH_ALIASES
 
 
 class StaticAncillaryFileGroup(YamlModel):
@@ -192,7 +141,7 @@ class StaticAncillaryFileGroup(YamlModel):
 
     """
 
-    algorithm_parameters_overrides_json: Optional[Path] = Field(
+    algorithm_parameters_overrides_json: OptionalPath = Field(
         default=None,
         description=(
             "JSON file containing frame-specific algorithm parameters to override the"
@@ -200,7 +149,7 @@ class StaticAncillaryFileGroup(YamlModel):
         ),
     )
 
-    deformation_area_database_json: Optional[Path] = Field(
+    deformation_area_database_json: OptionalPath = Field(
         default=None,
         alias="defo_area_db_json",
         description=(
@@ -209,7 +158,7 @@ class StaticAncillaryFileGroup(YamlModel):
         ),
     )
 
-    event_database_json: Optional[Path] = Field(
+    event_database_json: OptionalPath = Field(
         default=None,
         alias="event_db_json",
         description=(
@@ -217,42 +166,6 @@ class StaticAncillaryFileGroup(YamlModel):
             " for each frame."
         ),
     )
-
-    @field_validator(
-        "algorithm_parameters_overrides_json",
-        "deformation_area_database_json",
-        "event_database_json",
-        mode="before",
-    )
-    @classmethod
-    def _validate_paths(cls, v: Union[str, Path, None]) -> Optional[Path]:
-        """Validate and convert string paths to Path objects.
-
-        Parameters
-        ----------
-        v : str | Path | None
-            Input path value.
-
-        Returns
-        -------
-        Path | None
-            Validated Path object or None.
-
-        Raises
-        ------
-        ValueError
-            If the path is an empty string.
-
-        """
-        if v is None:
-            return None
-
-        if isinstance(v, str):
-            if not v.strip():
-                raise ValueError("Path cannot be an empty string")
-            return Path(v)
-
-        return v
 
     def has_algorithm_overrides(self) -> bool:
         """Check if algorithm parameter overrides are provided."""
@@ -266,40 +179,7 @@ class StaticAncillaryFileGroup(YamlModel):
         """Check if event database is provided."""
         return self.event_database_json is not None
 
-    def get_all_files(self) -> Dict[str, Path]:
-        """Get all non-None file paths.
+    def get_all_files(self) -> Dict[str, Path | list[Path]]:
+        return self.get_all_file_paths(flatten_lists=True)
 
-        Returns
-        -------
-        dict
-            Dictionary mapping field names to Path objects for all set files.
-
-        """
-        files = {}
-        for field_name in [
-            "algorithm_parameters_overrides_json",
-            "deformation_area_database_json",
-            "event_database_json",
-        ]:
-            value = getattr(self, field_name)
-            if value is not None:
-                files[field_name] = value
-        return files
-
-    def validate_files_exist(self) -> Dict[str, bool]:
-        """Check if all specified files exist on disk.
-
-        Returns
-        -------
-        dict
-            Dictionary mapping field names to existence status.
-
-        """
-        status = {}
-        for field_name, path in self.get_all_files().items():
-            status[field_name] = path.exists()
-        return status
-
-    model_config = ConfigDict(
-        extra="forbid", populate_by_name=True, validate_assignment=True
-    )
+    model_config = STRICT_CONFIG_WITH_ALIASES

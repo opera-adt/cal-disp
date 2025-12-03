@@ -3,11 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import Field, model_validator
 
 from ._common import DynamicAncillaryFileGroup, InputFileGroup, StaticAncillaryFileGroup
+from ._utils import DirectoryPath
 from ._workers import WorkerSettings
-from ._yaml import YamlModel
+from ._yaml import STRICT_CONFIG_WITH_ALIASES, ValidationResult, YamlModel
 
 
 class CalibrationWorkflow(YamlModel):
@@ -47,14 +48,14 @@ class CalibrationWorkflow(YamlModel):
         ),
     )
 
-    work_directory: Path = Field(
+    work_directory: DirectoryPath = Field(
         default=Path(),
         description=(
             "Directory for intermediate processing files. Created if it doesn't exist."
         ),
     )
 
-    output_directory: Path = Field(
+    output_directory: DirectoryPath = Field(
         default=Path(),
         description="Directory for final output files. Created if it doesn't exist.",
     )
@@ -92,18 +93,6 @@ class CalibrationWorkflow(YamlModel):
         ),
     )
 
-    @field_validator("work_directory", "output_directory", mode="before")
-    @classmethod
-    def _validate_directories(cls, v: Any) -> Path:
-        """Validate and convert directory paths."""
-        if v is None or v == "":
-            return Path()
-
-        if isinstance(v, str):
-            return Path(v)
-
-        return v
-
     @model_validator(mode="after")
     def _resolve_paths(self) -> "CalibrationWorkflow":
         """Resolve all paths to absolute if keep_paths_relative is False.
@@ -132,37 +121,21 @@ class CalibrationWorkflow(YamlModel):
 
         return self
 
-    def validate_ready_to_run(self) -> Dict[str, Any]:
-        """Check if workflow is ready to run.
-
-        Returns
-        -------
-        dict
-            Validation results with 'ready', 'errors', and 'warnings' keys.
-
-        """
+    def validate_ready_to_run(self) -> ValidationResult:
+        """Check if workflow is ready to run."""
         errors = []
         warnings = []
 
-        # Check if input_options is set
         if self.input_options is None:
             errors.append("input_options must be provided")
         else:
-            # Check if required input files are set
-            if (
-                not hasattr(self.input_options, "disp_file")
-                or self.input_options.disp_file is None
-            ):
+            if self.input_options.disp_file is None:
                 errors.append("disp_file must be provided in input_options")
-            if (
-                not hasattr(self.input_options, "calibration_reference_grid")
-                or self.input_options.calibration_reference_grid is None
-            ):
+            if self.input_options.calibration_reference_grid is None:
                 errors.append(
                     "calibration_reference_grid must be provided in input_options"
                 )
 
-            # Check if files exist
             missing = self.get_missing_files()
             if missing:
                 warnings.append(f"Missing files: {', '.join(missing)}")
@@ -173,54 +146,25 @@ class CalibrationWorkflow(YamlModel):
             "warnings": warnings,
         }
 
-    def validate_input_files_exist(self) -> Dict[str, bool]:
-        """Check if all required input files exist.
+    def validate_input_files_exist(self) -> Dict[str, Dict[str, Any]]:
+        """Check if all input files exist."""
+        results = {}
 
-        Returns
-        -------
-        dict
-            Dictionary mapping file names to existence status.
+        if self.input_options:
+            results.update(self.input_options.validate_files_exist())
 
-        """
-        status: dict = {}
-
-        if self.input_options is None:
-            return status
-
-        # Check required input files
-        if self.input_options.disp_file:
-            status["disp_file"] = self.input_options.disp_file.exists()
-
-        if self.input_options.calibration_reference_grid:
-            status["calibration_reference_grid"] = (
-                self.input_options.calibration_reference_grid.exists()
-            )
-
-        # Check dynamic ancillary files if provided
         if self.dynamic_ancillary_file_options:
-            dynamic_files = self.dynamic_ancillary_file_options.get_all_files()
-            for field_name, file_path in dynamic_files.items():
-                status[field_name] = file_path.exists()
+            results.update(self.dynamic_ancillary_file_options.validate_files_exist())
 
-        # Check static ancillary files if provided
         if self.static_ancillary_file_options:
-            static_files = self.static_ancillary_file_options.get_all_files()
-            for field_name, file_path in static_files.items():
-                status[field_name] = file_path.exists()
+            results.update(self.static_ancillary_file_options.validate_files_exist())
 
-        return status
+        return results
 
     def get_missing_files(self) -> List[str]:
-        """Get list of missing required input files.
-
-        Returns
-        -------
-        list[str]
-            List of field names for files that don't exist.
-
-        """
+        """Get list of missing required input files."""
         status = self.validate_input_files_exist()
-        return [name for name, exists in status.items() if not exists]
+        return [name for name, info in status.items() if not info["exists"]]
 
     def create_directories(self, exist_ok: bool = True) -> None:
         """Create work and output directories if they don't exist.
@@ -425,60 +369,4 @@ class CalibrationWorkflow(YamlModel):
             output_directory=Path("./output"),
         )
 
-    @classmethod
-    def from_yaml_file(cls, yaml_path: Path) -> "CalibrationWorkflow":
-        """Load workflow configuration from YAML file.
-
-        Parameters
-        ----------
-        yaml_path : Path
-            Path to YAML configuration file.
-
-        Returns
-        -------
-        CalibrationWorkflow
-            Loaded and validated workflow configuration.
-
-        """
-        import yaml  # type: ignore[import-untyped]
-
-        with open(yaml_path, "r") as f:
-            data = yaml.safe_load(f)
-
-        return cls.model_validate(data)
-
-    def to_yaml_file(self, yaml_path: Path) -> None:
-        """Save workflow configuration to YAML file.
-
-        Parameters
-        ----------
-        yaml_path : Path
-            Path where YAML file should be saved.
-
-        """
-        import yaml
-
-        # Convert to dict with proper path serialization
-        data = self.model_dump(mode="python")
-
-        # Convert Path objects to strings for YAML serialization
-        def convert_paths(obj):
-            if isinstance(obj, Path):
-                return str(obj)
-            elif isinstance(obj, dict):
-                return {k: convert_paths(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_paths(item) for item in obj]
-            return obj
-
-        data = convert_paths(data)
-
-        yaml_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(yaml_path, "w") as f:
-            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
-
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_assignment=True,
-        arbitrary_types_allowed=True,
-    )
+    model_config = STRICT_CONFIG_WITH_ALIASES

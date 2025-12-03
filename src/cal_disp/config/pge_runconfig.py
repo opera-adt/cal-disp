@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from os import PathLike
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Optional
+from typing import ClassVar, List, Optional, TextIO, Union
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field
 
-from ._yaml import YamlModel
+from ._utils import DirectoryPath, convert_paths_to_strings
+from ._yaml import STRICT_CONFIG_WITH_ALIASES, ValidationResult, YamlModel
 from .workflow import (
     CalibrationWorkflow,
     DynamicAncillaryFileGroup,
@@ -79,31 +81,21 @@ class ProductPathGroup(YamlModel):
 
     """
 
-    product_path: Path = Field(
+    product_path: DirectoryPath = Field(
         default=Path(),
         description="Directory where PGE will place results.",
     )
 
-    scratch_path: Path = Field(
+    scratch_path: DirectoryPath = Field(
         default=Path("./scratch"),
         description="Path to the scratch directory for intermediate files.",
     )
 
-    output_path: Path = Field(
+    output_path: DirectoryPath = Field(
         default=Path("./output"),
         description="Path to the SAS output directory.",
         alias="sas_output_path",
     )
-
-    @field_validator("product_path", "scratch_path", "output_path", mode="before")
-    @classmethod
-    def _validate_paths(cls, v: Any) -> Path:
-        """Validate and convert directory paths."""
-        if v is None or v == "":
-            return Path()
-        if isinstance(v, str):
-            return Path(v)
-        return v
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -250,37 +242,24 @@ class RunConfig(YamlModel):
         tmp_dir = self.product_path_group.scratch_path / "tmp"
         tmp_dir.mkdir(parents=True, exist_ok=exist_ok)
 
-    def validate_ready_to_run(self) -> Dict[str, Any]:
-        """Check if run configuration is ready for execution.
+    def validate_ready_to_run(self) -> ValidationResult:
+        """Check if run configuration is ready for execution."""
+        errors: List[str] = []
+        warnings: List[str] = []
 
-        Returns
-        -------
-        dict
-            Validation results with 'ready', 'errors', and 'warnings' keys.
+        # Check if None instead
+        if self.input_file_group.disp_file is None:
+            errors.append("disp_file must be provided")
 
-        """
-        errors = []
-        warnings = []
+        if self.input_file_group.calibration_reference_grid is None:
+            errors.append("calibration_reference_grid must be provided")
 
-        # Check if input files are configured
-        if not hasattr(self.input_file_group, "disp_file"):
-            errors.append("input_file_group must have disp_file configured")
-
-        if not hasattr(self.input_file_group, "calibration_reference_grid"):
-            errors.append(
-                "input_file_group must have calibration_reference_grid configured"
-            )
-
-        # Check dynamic ancillary files if required
+        # Check dynamic ancillary files if provided
         if self.dynamic_ancillary_file_group:
-            if not hasattr(
-                self.dynamic_ancillary_file_group, "algorithm_parameters_file"
-            ):
-                warnings.append(
-                    "dynamic_ancillary_file_group missing algorithm_parameters_file"
-                )
-            if not hasattr(self.dynamic_ancillary_file_group, "geometry_file"):
-                warnings.append("dynamic_ancillary_file_group missing geometry_file")
+            if self.dynamic_ancillary_file_group.algorithm_parameters_file is None:
+                warnings.append("Missing algorithm_parameters_file")
+            if self.dynamic_ancillary_file_group.geometry_file is None:
+                warnings.append("Missing geometry_file")
 
         return {
             "ready": len(errors) == 0,
@@ -388,7 +367,7 @@ class RunConfig(YamlModel):
             ),
             dynamic_ancillary_file_group=DynamicAncillaryFileGroup(
                 algorithm_parameters_file=Path("config/algorithm_params.yaml"),
-                geometry_file=Path("input/geometry.h5"),
+                static_layers_file=Path("input/geometry.h5"),
             ),
             product_path_group=ProductPathGroup(
                 scratch_path=Path("./scratch"), output_path=Path("./output")
@@ -399,6 +378,8 @@ class RunConfig(YamlModel):
     @classmethod
     def from_yaml_file(cls, yaml_path: Path) -> "RunConfig":
         """Load run configuration from YAML file.
+
+        Handles optional name wrapper key.
 
         Parameters
         ----------
@@ -411,55 +392,88 @@ class RunConfig(YamlModel):
             Loaded and validated run configuration.
 
         """
-        import yaml  # type: ignore[import-untyped]
+        data = cls._load_yaml_data(yaml_path)
 
-        with open(yaml_path, "r") as f:
-            data = yaml.safe_load(f)
-
-        # Handle nested structure if present
+        # Handle optional wrapper key
         if cls.name in data:
             data = data[cls.name]
 
         return cls.model_validate(data)
 
-    def to_yaml_file(self, yaml_path: Path, include_name_key: bool = True) -> None:
-        """Save run configuration to YAML file.
+    @staticmethod
+    def _load_yaml_data(yaml_path: Path) -> dict:
+        """Load YAML data from file.
 
         Parameters
         ----------
         yaml_path : Path
-            Path where YAML file should be saved.
-        include_name_key : bool, default=True
-            If True, wrap the config in a dictionary with the name as key.
+            Path to YAML file.
+
+        Returns
+        -------
+        dict
+            Loaded YAML data.
 
         """
-        import yaml
+        from ruamel.yaml import YAML
 
-        # Convert to dict
-        data = self.model_dump(mode="python", by_alias=True)
+        y = YAML(typ="safe")
+        with open(yaml_path) as f:
+            return y.load(f)
 
-        # Convert Path objects to strings
-        def convert_paths(obj):
-            if isinstance(obj, Path):
-                return str(obj)
-            elif isinstance(obj, dict):
-                return {k: convert_paths(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_paths(item) for item in obj]
-            return obj
+    def to_yaml(
+        self,
+        output_path: Union[str, PathLike, TextIO],
+        with_comments: bool = True,  # noqa: ARG002
+        by_alias: bool = True,
+        indent_per_level: int = 2,
+    ) -> None:  # Note: return type can be None or Any, both work
+        """Save configuration to YAML file with name wrapper.
 
-        data = convert_paths(data)
+        Parameters
+        ----------
+        output_path : str | PathLike | TextIO
+            Path where YAML should be saved.
+        with_comments : bool, default=True
+            Whether to include field descriptions as comments.
+        by_alias : bool, default=True
+            Whether to use field aliases in output.
+        indent_per_level : int, default=2
+            Indentation spacing.
 
-        # Wrap in name key if requested
-        if include_name_key:
-            data = {self.name: data}
+        Notes
+        -----
+        This method always wraps output in {cal_disp_workflow: ...} structure.
+        The with_comments parameter is accepted for signature compatibility but
+        not currently used in the wrapper output.
 
-        yaml_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(yaml_path, "w") as f:
-            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+        """
+        from ruamel.yaml import YAML
 
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_assignment=True,
-        arbitrary_types_allowed=True,
-    )
+        # Handle file-like objects
+        if hasattr(output_path, "write"):
+            raise ValueError(
+                "RunConfig.to_yaml doesn't support file-like objects. "
+                "Save to a file path instead."
+            )
+
+        # Convert to Path
+        output_path_obj = Path(output_path)
+
+        # Get dict and convert paths
+        data = self.model_dump(mode="python", by_alias=by_alias)
+        data = convert_paths_to_strings(data)
+        wrapped = {self.name: data}
+
+        # Write with proper formatting
+        output_path_obj.parent.mkdir(parents=True, exist_ok=True)
+        y = YAML()
+        y.indent(
+            mapping=indent_per_level,
+            sequence=indent_per_level + 2,
+            offset=indent_per_level,
+        )
+        with open(output_path_obj, "w") as f:
+            y.dump(wrapped, f)
+
+    model_config = STRICT_CONFIG_WITH_ALIASES
