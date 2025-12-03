@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field, model_validator
 
-from ._common import DynamicAncillaryFileGroup, InputFileGroup, StaticAncillaryFileGroup
+from ._base import DynamicAncillaryFileGroup, InputFileGroup, StaticAncillaryFileGroup
 from ._utils import DirectoryPath
 from ._workers import WorkerSettings
 from ._yaml import STRICT_CONFIG_WITH_ALIASES, ValidationResult, YamlModel
