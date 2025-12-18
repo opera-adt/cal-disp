@@ -71,7 +71,7 @@ class CalibrationWorkflow(YamlModel):
     # Optional ancillary file groups
     dynamic_ancillary_file_options: Optional[DynamicAncillaryFileGroup] = Field(
         default=None,
-        description="Dynamic ancillary files (geometry, masks, troposphere, etc.).",
+        description="Dynamic ancillary files (dem, los, masks, troposphere, etc.).",
     )
 
     static_ancillary_file_options: Optional[StaticAncillaryFileGroup] = Field(
