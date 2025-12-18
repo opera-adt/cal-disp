@@ -66,14 +66,24 @@ class DynamicAncillaryFileGroup(YamlModel):
         description="Path to file containing SAS algorithm parameters.",
     )
 
-    geometry_file: RequiredPath = Field(
+    los_file: RequiredPath = Field(
         ...,
-        alias="static_layers_file",
+        alias="static_los_file",
         description=(
-            "Path to the DISP static_layer file (1 per frame) with line-of-sight"
+            "Path to the DISP static los layer file (1 per frame) with line-of-sight"
             " unit vectors."
         ),
     )
+
+    dem_file: RequiredPath = Field(
+        ...,
+        alias="static_dem_file",
+        description=(
+            "Path to the DISP static dem layer file (1 per frame) with line-of-sight"
+            " unit vectors."
+        ),
+    )
+    # NOTE should I add also shadow_layover static file as input
 
     mask_file: OptionalPath = Field(
         default=None,
@@ -102,21 +112,12 @@ class DynamicAncillaryFileGroup(YamlModel):
         ),
     )
 
-    reference_iono_files: Optional[List[Path]] = Field(
+    iono_files: Optional[List[Path]] = Field(
         default=None,
-        alias="ref_iono_files",
+        alias="iono_files",
         description=(
-            "Path to the IONO file for the reference date."
+            "Path to the IONO files"
             " If not provided, ionosphere correction for reference is skipped."
-        ),
-    )
-
-    secondary_iono_files: Optional[List[Path]] = Field(
-        default=None,
-        alias="sec_iono_files",
-        description=(
-            "Path to the IONO file for the secondary date."
-            " If not provided, ionosphere correction for secondary is skipped."
         ),
     )
 
@@ -131,8 +132,7 @@ class DynamicAncillaryFileGroup(YamlModel):
     @field_validator(
         "reference_tropo_files",
         "secondary_tropo_files",
-        "reference_iono_files",
-        "secondary_iono_files",
+        "iono_files",
         "tiles_files",
         mode="before",
     )

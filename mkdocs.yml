@@ -1,0 +1,54 @@
+site_name: Documentation for CAL-DISP
+site_url: https://<your-username>.github.io/cal-disp/
+
+# Theme
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+
+# Navigation
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Tutorials:
+      - Basic Usage: tutorials/basic_usage.ipynb
+  - API Reference: api.md
+
+# Plugins
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+            show_source: true
+            show_root_heading: true
+            show_signature_annotations: true
+            separate_signature: true
+  - mkdocs-jupyter:
+      include_source: true
+
+# Markdown extensions
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.snippets
+  - toc:
+      permalink: true

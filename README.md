@@ -1,5 +1,5 @@
 # CAL-DISP
-Calibration for OPERA DISP SAS repository
+OPERA Calibration for DISP, a SAS repository
 
 
 # DISP-S1
@@ -15,6 +15,7 @@ Creates the science application software (SAS) using the [Venti]() library.
 1. Download source code:
 ```bash
 git clone https://github.com/opera-adt/venti.git
+git clone https://github.com/opera-adt/geepers
 git clone https://github.com/opera-adt/cal-disp.git
 ```
 2. Install dependencies, either to a new environment:
@@ -24,9 +25,9 @@ conda activate my-cal-env
 ```
 or install within your existing env with mamba.
 
-3. Install `venti` and `cal-disp` via pip in editable mode
+3. Install `venti`, `geepers` and `cal-disp` via pip in editable mode
 ```bash
-python -m pip install --no-deps -e venti/ cal-disp/
+python -m pip install --no-deps -e venti/ geepers/ cal-disp/
 ```
 
 ### Setup for contributing
