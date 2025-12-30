@@ -1,5 +1,5 @@
 site_name: Documentation for CAL-DISP
-site_description:  Tutorial on CAL-DISP functionalities
+site_url: https://<your-username>.github.io/cal-disp/
 
 # Theme
 theme:
@@ -26,7 +26,7 @@ nav:
   - Quickstart: quickstart.md
   - Tutorials:
       - Basic Usage: tutorials/basic_usage.ipynb
-  - API Reference: api/
+  - API Reference: api.md
 
 # Plugins
 plugins:

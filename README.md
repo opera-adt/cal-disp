@@ -1,5 +1,5 @@
 # CAL-DISP
-Calibration for OPERA DISP SAS repository
+OPERA Calibration for DISP, a SAS repository
 
 
 # DISP-S1
