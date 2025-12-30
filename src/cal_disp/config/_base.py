@@ -83,6 +83,7 @@ class DynamicAncillaryFileGroup(YamlModel):
             " unit vectors."
         ),
     )
+    # NOTE should I add also shadow_layover static file as input
 
     mask_file: OptionalPath = Field(
         default=None,
