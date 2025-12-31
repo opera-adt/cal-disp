@@ -186,8 +186,8 @@ class UnrGrid:
             "north": bounds[3],
         }
 
-    def get_station_count(self) -> int:
-        """Get number of GNSS stations in grid.
+    def get_grid_count(self) -> int:
+        """Get number of GNSS points in grid.
 
         Returns
         -------
@@ -196,7 +196,8 @@ class UnrGrid:
 
         """
         df = self.to_dataframe()
-        return len(df)
+        grid_points = df.groupby("id", as_index=False).first()
+        return len(grid_points)
 
     @property
     def filename(self) -> str:
@@ -213,5 +214,5 @@ class UnrGrid:
         frame_str = f"frame={self.frame_id}" if self.frame_id else "frame=None"
         return (
             f"UnrGrid({frame_str},"
-            f" stations={self.get_station_count() if self.exists else '?'})"
+            f" points={self.get_grid_count() if self.exists else '?'})"
         )
