@@ -2,14 +2,26 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://&lt;your-username&gt;.github.io/cal-disp/</loc>
-         <lastmod>2025-12-30</lastmod>
+         <lastmod>2025-12-31</lastmod>
     </url>
     <url>
          <loc>https://&lt;your-username&gt;.github.io/cal-disp/api/</loc>
-         <lastmod>2025-12-30</lastmod>
+         <lastmod>2025-12-31</lastmod>
     </url>
     <url>
          <loc>https://&lt;your-username&gt;.github.io/cal-disp/quickstart/</loc>
-         <lastmod>2025-12-30</lastmod>
+         <lastmod>2025-12-31</lastmod>
+    </url>
+    <url>
+         <loc>https://&lt;your-username&gt;.github.io/cal-disp/tutorials/config/</loc>
+         <lastmod>2025-12-31</lastmod>
+    </url>
+    <url>
+         <loc>https://&lt;your-username&gt;.github.io/cal-disp/tutorials/download/</loc>
+         <lastmod>2025-12-31</lastmod>
+    </url>
+    <url>
+         <loc>https://&lt;your-username&gt;.github.io/cal-disp/tutorials/product/</loc>
+         <lastmod>2025-12-31</lastmod>
     </url>
 </urlset>
