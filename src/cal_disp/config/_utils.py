@@ -146,10 +146,18 @@ def _to_path_optional(v: Union[str, Path, None]) -> Optional[Path]:
     return validate_path_field(v, allow_none=True)
 
 
+def _to_existing_file(v: Union[str, Path, None]) -> Path:
+    p = _to_path_required(v)  # first do the basic checks
+    if not p.exists():
+        raise ValueError(f"File does not exist: {p}")
+    return p
+
+
 # Type aliases for cleaner code
 RequiredPath = Annotated[Path, BeforeValidator(_to_path_required)]
 OptionalPath = Annotated[Optional[Path], BeforeValidator(_to_path_optional)]
 DirectoryPath = Annotated[Path, BeforeValidator(_validate_directory_path)]
+ExistingFilePath = Annotated[Path, BeforeValidator(_to_existing_file)]
 
 
 def convert_paths_to_strings(obj: Any) -> Any:

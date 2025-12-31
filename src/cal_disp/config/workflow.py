@@ -69,12 +69,12 @@ class CalibrationWorkflow(YamlModel):
     )
 
     # Optional ancillary file groups
-    dynamic_ancillary_file_options: Optional[DynamicAncillaryFileGroup] = Field(
+    dynamic_ancillary_options: Optional[DynamicAncillaryFileGroup] = Field(
         default=None,
         description="Dynamic ancillary files (dem, los, masks, troposphere, etc.).",
     )
 
-    static_ancillary_file_options: Optional[StaticAncillaryFileGroup] = Field(
+    static_ancillary_options: Optional[StaticAncillaryFileGroup] = Field(
         default=None,
         description="Static ancillary files (algorithm overrides, databases, etc.).",
     )
@@ -136,6 +136,12 @@ class CalibrationWorkflow(YamlModel):
                     "calibration_reference_grid must be provided in input_options"
                 )
 
+        # Check dynamic ancillaries
+        if self.dynamic_ancillary_options is None:
+            errors.append("dynamic_ancillary_options must be provided")
+
+        # Check for missing files only if required options are set
+        if self.input_options is not None:
             missing = self.get_missing_files()
             if missing:
                 warnings.append(f"Missing files: {', '.join(missing)}")
@@ -153,11 +159,11 @@ class CalibrationWorkflow(YamlModel):
         if self.input_options:
             results.update(self.input_options.validate_files_exist())
 
-        if self.dynamic_ancillary_file_options:
-            results.update(self.dynamic_ancillary_file_options.validate_files_exist())
+        if self.dynamic_ancillary_options:
+            results.update(self.dynamic_ancillary_options.validate_files_exist())
 
-        if self.static_ancillary_file_options:
-            results.update(self.static_ancillary_file_options.validate_files_exist())
+        if self.static_ancillary_options:
+            results.update(self.static_ancillary_options.validate_files_exist())
 
         return results
 
@@ -281,8 +287,8 @@ class CalibrationWorkflow(YamlModel):
         )
 
         # Dynamic ancillary files
-        if self.dynamic_ancillary_file_options:
-            dynamic_files = self.dynamic_ancillary_file_options.get_all_files()
+        if self.dynamic_ancillary_options:
+            dynamic_files = self.dynamic_ancillary_options.get_all_files()
             if dynamic_files:
                 lines.extend(["Dynamic Ancillary Files:"])
                 for name, path in list(dynamic_files.items())[:5]:  # Show first 5
@@ -292,8 +298,8 @@ class CalibrationWorkflow(YamlModel):
                 lines.append("")
 
         # Static ancillary files
-        if self.static_ancillary_file_options:
-            static_files = self.static_ancillary_file_options.get_all_files()
+        if self.static_ancillary_options:
+            static_files = self.static_ancillary_options.get_all_files()
             if static_files:
                 lines.extend(["Static Ancillary Files:"])
                 for name, path in static_files.items():
@@ -346,9 +352,14 @@ class CalibrationWorkflow(YamlModel):
             work_directory=Path("./work"),
             output_directory=Path("./output"),
             input_options=InputFileGroup(
-                disp_file=Path("input/disp.h5"),
+                disp_file=Path("input/disp.nc"),
                 calibration_reference_grid=Path("input/cal_grid.parquet"),
                 frame_id=1,
+            ),
+            dynamic_ancillary_options=DynamicAncillaryFileGroup(
+                algorithm_parameters_file="algorithm.yaml",
+                static_los_file="line_of_sight_enu.tif",
+                static_dem_file="dem.tif",
             ),
             worker_settings=WorkerSettings.create_standard(),
             keep_paths_relative=True,

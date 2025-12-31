@@ -48,16 +48,32 @@ class DynamicAncillaryFileGroup(YamlModel):
     ----------
     algorithm_parameters_file : Path
         Path to file containing SAS algorithm parameters.
-    geometry_file : Path
-        Path to the DISP static_layer file with line-of-sight unit vectors.
-    mask_file : Optional[Path]
-        Optional byte mask file to ignore low correlation/bad data.
-    troposphere_files : List[Path]
-        Paths to TROPO files for atmospheric correction.
-    ionosphere_files : List[Path]
-        Paths to IONO files for ionospheric correction.
-    tiles_files : Optional[List[Path]]
-        Paths to calibration tile bounds files.
+    los_file : Path
+        Path to the DISP static LOS layer file (line-of-sight unit vectors).
+        Alias: static_los_file
+    dem_file : Path
+        Path to the DISP static DEM layer file (digital elevation model).
+        Alias: static_dem_file
+    mask_file : Path or None, optional
+        Optional byte mask file to ignore low correlation/bad data (e.g., water mask).
+        Convention: 0 = invalid/no data, 1 = good data. Dtype must be uint8.
+        Default is None.
+    reference_tropo_files : list[Path] or None, optional
+        Paths to TROPO files for the reference (primary) date.
+        If not provided, tropospheric correction for reference is skipped.
+        Alias: ref_tropo_files. Default is None.
+    secondary_tropo_files : list[Path] or None, optional
+        Paths to TROPO files for the secondary date.
+        If not provided, tropospheric correction for secondary is skipped.
+        Alias: sec_tropo_files. Default is None.
+    iono_files : list[Path] or None, optional
+        Paths to ionospheric correction files.
+        If not provided, ionospheric correction is skipped.
+        Default is None.
+    tiles_files : list[Path] or None, optional
+        Paths to calibration tile bounds files (e.g., S1 burst bounds) covering
+        the full frame. If not provided, per-tile calibration is skipped.
+        Default is None.
 
     """
 

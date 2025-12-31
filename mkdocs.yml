@@ -25,7 +25,9 @@ nav:
   - Home: index.md
   - Quickstart: quickstart.md
   - Tutorials:
-      - Basic Usage: tutorials/basic_usage.ipynb
+      - Download: tutorials/download.ipynb
+      - Configuration: tutorials/config.ipynb
+      - Product: tutorials/product.ipynb
   - API Reference: api.md
 
 # Plugins
