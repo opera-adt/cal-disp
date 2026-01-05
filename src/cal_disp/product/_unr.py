@@ -1,218 +1,288 @@
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
-import pyarrow.parquet as pq
+
+from cal_disp.download._stage_unr import load_lookup_table
+from cal_disp.product._utils import decimal_year_to_datetime
 
 
 @dataclass
 class UnrGrid:
-    """UNR GNSS grid data.
+    """UNR GNSS grid data from lookup table and tenv8 files.
 
-    Represents gridded GNSS velocity data from University of Nevada Reno.
-    Data is stored as parquet with point geometries and metadata.
+    Represents gridded GNSS displacement timeseries from University of Nevada Reno.
+    Combines geographic coordinates from lookup table with displacement data
+    from .tenv8 files.
+
+    Parameters
+    ----------
+    lookup_table : Path
+        Path to grid_latlon_lookup.txt file.
+    data_dir : Path
+        Directory containing .tenv8 files.
+    frame_id : int or None, optional
+        OPERA frame identifier. Default is None.
 
     Examples
     --------
-    >>> # Load from path (frame_id parsed if in filename)
-    >>> grid = UnrGrid.from_path("unr_grid_frame8882.parquet")
-    >>> grid.frame_id
-    8882
-
-    >>> # Load GeoDataFrame
-    >>> gdf = grid.load()
-    >>> gdf.columns
-    ['lon', 'lat', 'east', 'north', 'up', 'geometry', ...]
-
-    >>> # Get metadata
-    >>> meta = grid.get_metadata()
-    >>> meta['source']
-    'UNR'
+    >>> grid = UnrGrid(
+    ...     lookup_table=Path("data/grid_latlon_lookup_v0.2.txt"),
+    ...     data_dir=Path("data/tenv8_files"),
+    ...     frame_id=8882
+    ... )
+    >>> df = grid.to_dataframe()
+    >>> df.columns
+    ['grid_point', 'lon', 'lat', 'date', 'east', 'north', 'up', ...]
 
     """
 
-    path: Path
+    lookup_table: Path
+    data_dir: Path
     frame_id: int | None = None
 
-    # Optional pattern to extract frame_id from filename
-    _PATTERN = re.compile(r"frame[\s_-]?(\d+)", re.IGNORECASE)
+    _TENV8_PATTERN = re.compile(r"(\d{6})_[A-Z0-9]+\.tenv8")
 
     def __post_init__(self) -> None:
-        """Validate grid after construction."""
-        self.path = Path(self.path)
+        """Validate paths after construction."""
+        self.lookup_table = Path(self.lookup_table)
+        self.data_dir = Path(self.data_dir)
 
-    @classmethod
-    def from_path(cls, path: Path | str, frame_id: int | None = None) -> "UnrGrid":
-        """Create UnrGrid from parquet file path.
+        if not self.lookup_table.exists():
+            raise FileNotFoundError(f"Lookup table not found: {self.lookup_table}")
+        if not self.data_dir.exists():
+            raise FileNotFoundError(f"Data directory not found: {self.data_dir}")
+
+        self._df_cache = None
+
+    def _load_tenv8(self, path: Path) -> pd.DataFrame:
+        """Load a single tenv8 file.
 
         Parameters
         ----------
-        path : Path or str
-            Path to UNR parquet file.
-        frame_id : int or None, optional
-            Frame ID. If None, attempts to parse from filename.
-            Default is None.
+        path : Path
+            Path to .tenv8 file.
 
         Returns
         -------
-        UnrGrid
-            Grid instance.
-
-        Examples
-        --------
-        >>> # Frame ID from filename
-        >>> grid = UnrGrid.from_path("unr_grid_frame8882.parquet")
-        >>> grid.frame_id
-        8882
-
-        >>> # Explicit frame ID
-        >>> grid = UnrGrid.from_path("custom_unr_data.parquet", frame_id=8882)
-        >>> grid.frame_id
-        8882
-
-        >>> # No frame ID
-        >>> grid = UnrGrid.from_path("unr_data.parquet")
-        >>> grid.frame_id is None
-        True
+        pd.DataFrame
+            Timeseries data with grid_point column added.
 
         """
-        path = Path(path)
+        match = self._TENV8_PATTERN.search(path.name)
+        if not match:
+            raise ValueError(f"Cannot parse grid_point from filename: {path.name}")
 
-        # Try to parse frame_id from filename if not provided
-        if frame_id is None:
-            match = cls._PATTERN.search(path.name)
-            if match:
-                frame_id = int(match.group(1))
+        grid_point = int(match.group(1))
 
-        return cls(path=path, frame_id=frame_id)
+        df = pd.read_csv(
+            path,
+            sep=r"\s+",
+            header=None,
+            names=[
+                "decimal_year",
+                "east",
+                "north",
+                "up",
+                "sigma_east",
+                "sigma_north",
+                "sigma_up",
+                "rapid_flag",
+            ],
+        )
+        df["grid_point"] = grid_point
+        return df
 
-    def load(self) -> gpd.GeoDataFrame:
-        """Load UNR grid as GeoDataFrame.
+    def to_dataframe(self, use_cache: bool = True) -> pd.DataFrame:
+        """Construct grid dataframe from lookup table and tenv8 files.
+
+        Combines geographic coordinates with displacement timeseries data.
+        Converts decimal years to datetime and displacement values from
+        millimeters to meters.
+
+        Parameters
+        ----------
+        use_cache : bool, optional
+            If True, cache result for subsequent calls. Default is True.
 
         Returns
         -------
-        gpd.GeoDataFrame
-            GeoDataFrame with point geometries and velocity data.
+        pd.DataFrame
+            Combined dataframe with columns:
+            - grid_point: Grid point ID
+            - lon, lat: Geographic coordinates (normalized to [-180, 180])
+            - date: Observation datetime
+            - east, north, up: Displacement components (meters)
+            - sigma_east, sigma_north, sigma_up: Uncertainties (meters)
+            - corr_en, corr_eu, corr_nu: Correlation coefficients (placeholder)
+            - rapid_flag: Rapid solution flag
 
         Raises
         ------
         FileNotFoundError
-            If parquet file does not exist.
+            If no tenv8 files found in data directory.
+
+        Notes
+        -----
+        UNR data is in millimeters; this method converts to meters.
+        Correlation coefficients are set to 0.0 (not provided in .tenv8 format).
 
         Examples
         --------
-        >>> grid = UnrGrid.from_path("unr_grid_frame8882.parquet")
-        >>> gdf = grid.load()
-        >>> gdf.crs
-        'EPSG:4326'
-        >>> gdf[['lon', 'lat', 'east', 'north', 'up']].head()
+        >>> grid = UnrGrid(lookup_table=Path("lookup.txt"), data_dir=Path("data"))
+        >>> df = grid.to_dataframe()
+        >>> df['east'].max()  # in meters
+        0.045
 
         """
-        if not self.path.exists():
-            raise FileNotFoundError(f"UNR grid file not found: {self.path}")
+        if use_cache and self._df_cache is not None:
+            return self._df_cache
 
-        # Load parquet as DataFrame
-        df = pd.read_parquet(self.path)
+        lookup = load_lookup_table(self.lookup_table, normalize_longitude=True)
 
-        # Create GeoDataFrame with point geometries
-        gdf = gpd.GeoDataFrame(
+        tenv8_files = sorted(self.data_dir.glob("*.tenv8"))
+        if not tenv8_files:
+            raise FileNotFoundError(f"No .tenv8 files found in {self.data_dir}")
+
+        timeseries = pd.concat(
+            [self._load_tenv8(path) for path in tenv8_files],
+            ignore_index=True,
+        )
+
+        timeseries["date"] = timeseries["decimal_year"].apply(decimal_year_to_datetime)
+
+        # Placeholder correlation values (not in .tenv8 format)
+        timeseries["corr_en"] = 0.0
+        timeseries["corr_eu"] = 0.0
+        timeseries["corr_nu"] = 0.0
+
+        result = timeseries.merge(lookup.reset_index(), on="grid_point", how="left")
+
+        # Convert from millimeters to meters
+        for col in ["east", "north", "up", "sigma_east", "sigma_north", "sigma_up"]:
+            result[col] /= 1000.0
+
+        result = result[
+            [
+                "grid_point",
+                "lon",
+                "lat",
+                "date",
+                "east",
+                "north",
+                "up",
+                "sigma_east",
+                "sigma_north",
+                "sigma_up",
+                "corr_en",
+                "corr_eu",
+                "corr_nu",
+                "rapid_flag",
+            ]
+        ]
+
+        result.attrs["units"] = "meters"
+
+        if use_cache:
+            self._df_cache = result
+
+        return result
+
+    def to_geodataframe(self) -> gpd.GeoDataFrame:
+        """Convert to GeoDataFrame with point geometries.
+
+        Returns
+        -------
+        gpd.GeoDataFrame
+            GeoDataFrame with point geometries at each grid location.
+
+        Examples
+        --------
+        >>> grid = UnrGrid(lookup_table=Path("lookup.txt"), data_dir=Path("data"))
+        >>> gdf = grid.to_geodataframe()
+        >>> gdf.crs
+        'EPSG:4326'
+
+        """
+        df = self.to_dataframe()
+        return gpd.GeoDataFrame(
             df,
             geometry=gpd.points_from_xy(x=df.lon, y=df.lat),
             crs="EPSG:4326",
         )
 
-        return gdf
-
-    def get_metadata(self) -> dict[str, str]:
-        """Extract metadata from parquet file.
-
-        Returns
-        -------
-        dict[str, str]
-            Metadata dictionary.
-
-        Examples
-        --------
-        >>> grid = UnrGrid.from_path("unr_grid_frame8882.parquet")
-        >>> meta = grid.get_metadata()
-        >>> meta.keys()
-        dict_keys(['source', 'date_created', 'frame_id', ...])
-
-        """
-        if not self.path.exists():
-            raise FileNotFoundError(f"UNR grid file not found: {self.path}")
-
-        meta = pq.read_metadata(self.path).metadata
-
-        if meta is None:
-            return {}
-
-        metadata_dict = {k.decode(): v.decode() for k, v in meta.items()}
-
-        return metadata_dict
-
-    def to_dataframe(self) -> pd.DataFrame:
-        """Load as regular DataFrame without geometry.
+    def get_grid_points(self) -> pd.DataFrame:
+        """Get unique grid points with their coordinates.
 
         Returns
         -------
         pd.DataFrame
-            DataFrame with lon, lat, and velocity columns.
+            DataFrame with one row per grid point: grid_point, lon, lat.
+
+        Examples
+        --------
+        >>> grid = UnrGrid(lookup_table=Path("lookup.txt"), data_dir=Path("data"))
+        >>> points = grid.get_grid_points()
+        >>> len(points)
+        450
 
         """
-        if not self.path.exists():
-            raise FileNotFoundError(f"UNR grid file not found: {self.path}")
+        df = self.to_dataframe()
+        return df[["grid_point", "lon", "lat"]].drop_duplicates().reset_index(drop=True)
 
-        return pd.read_parquet(self.path)
-
-    def get_bounds(self) -> dict[str, float]:
+    def get_bounds(self) -> tuple[float, float, float, float]:
         """Get spatial bounds of grid.
 
         Returns
         -------
-        dict[str, float]
-            Dictionary with keys: west, south, east, north.
+        tuple[float, float, float, float]
+            (west, south, east, north) bounds.
+
+        Examples
+        --------
+        >>> grid.get_bounds()
+        (-120.5, 32.1, -115.2, 35.8)
 
         """
-        gdf = self.load()
-        bounds = gdf.total_bounds  # (minx, miny, maxx, maxy)
+        points = self.get_grid_points()
+        return (
+            points.lon.min(),
+            points.lat.min(),
+            points.lon.max(),
+            points.lat.max(),
+        )
 
-        return {
-            "west": bounds[0],
-            "south": bounds[1],
-            "east": bounds[2],
-            "north": bounds[3],
-        }
-
-    def get_grid_count(self) -> int:
-        """Get number of GNSS points in grid.
+    def get_time_range(self) -> tuple[datetime, datetime]:
+        """Get temporal range of observations.
 
         Returns
         -------
-        int
-            Number of stations.
+        tuple[datetime, datetime]
+            (min_date, max_date).
+
+        Examples
+        --------
+        >>> grid.get_time_range()
+        (datetime(2014, 7, 1), datetime(2024, 10, 15))
 
         """
         df = self.to_dataframe()
-        grid_points = df.groupby("id", as_index=False).first()
-        return len(grid_points)
-
-    @property
-    def filename(self) -> str:
-        """Grid filename."""
-        return self.path.name
-
-    @property
-    def exists(self) -> bool:
-        """Check if grid file exists."""
-        return self.path.exists()
+        return (df.date.min(), df.date.max())
 
     def __repr__(self) -> str:
         """Return a string representation."""
-        frame_str = f"frame={self.frame_id}" if self.frame_id else "frame=None"
-        return (
-            f"UnrGrid({frame_str},"
-            f" points={self.get_grid_count() if self.exists else '?'})"
-        )
+        frame_str = f"frame={self.frame_id}" if self.frame_id else "no frame"
+        try:
+            n_points = len(self.get_grid_points())
+            start, end = self.get_time_range()
+            return (
+                f"UnrGrid({frame_str}, points={n_points}, "
+                f"dates={start.date()}-{end.date()})"
+            )
+        except Exception:
+            return f"UnrGrid({frame_str})"

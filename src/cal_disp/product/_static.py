@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -447,6 +449,6 @@ class StaticLayer:
         return self.path.exists()
 
     def __repr__(self) -> str:
-        """Concise string representation."""
+        """Return a string representation."""
         band_info = f", bands={self.num_bands}" if self.exists else ""
         return f"StaticLayer(frame={self.frame_id}, layer={self.layer_type}{band_info})"

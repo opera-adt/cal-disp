@@ -5,8 +5,6 @@ from pathlib import Path
 
 import click
 
-from cal_disp.download.utils import extract_sensing_times_from_file
-
 
 @click.group(name="download")
 def download_group():
@@ -107,20 +105,6 @@ def disp_s1(
     help="Directory to save downloaded UNR parquet file.",
 )
 @click.option(
-    "--start",
-    "-s",
-    type=click.DateTime(formats=["%Y-%m-%d"]),
-    default=None,
-    help="Start date of timeseries (YYYY-MM-DD).",
-)
-@click.option(
-    "--end",
-    "-e",
-    type=click.DateTime(formats=["%Y-%m-%d"]),
-    default=None,
-    help="End date of timeseries (YYYY-MM-DD).",
-)
-@click.option(
     "--margin",
     "-m",
     type=float,
@@ -131,8 +115,6 @@ def disp_s1(
 def unr(
     frame_id: int,
     output_dir: Path,
-    start: datetime | None,
-    end: datetime | None,
     margin: float,
 ) -> None:
     r"""Download UNR GPS timeseries data for a DISP-S1 frame.
@@ -147,10 +129,6 @@ def unr(
     Download UNR data for a frame:
         $ cal-disp download unr --frame-id 8882 -o ./unr_data
 
-    With date range:
-        $ cal-disp download unr --frame-id 8882 -o ./unr_data \\
-            --start 2022-01-01 --end 2023-12-31
-
     Expand bounding box by 1 degree:
         $ cal-disp download unr --frame-id 8882 -o ./unr_data -m 1.0
 
@@ -162,8 +140,6 @@ def unr(
     download_unr_grid(
         frame_id=frame_id,
         output_dir=output_dir,
-        start=start,
-        end=end,
         margin_deg=margin,
     )
     click.echo(f"Download complete: {output_dir}")
@@ -225,6 +201,7 @@ def tropo(
 
     """
     from cal_disp.download import download_tropo
+    from cal_disp.download.utils import extract_sensing_times_from_file
 
     sensing_times = extract_sensing_times_from_file(input_file)
     output_dir.mkdir(exist_ok=True, parents=True)
@@ -277,6 +254,7 @@ def burst_bounds(
 
     """
     from cal_disp.download import generate_s1_burst_tiles
+    from cal_disp.download.utils import extract_sensing_times_from_file
 
     # Parse filename: OPERA_L3_DISP-S1_IW_F{frame}_VV_{dates}...
     parts = input_file.stem.split("_")

@@ -6,19 +6,6 @@ from typing import Final
 
 import click
 
-from cal_disp.config import (
-    DynamicAncillaryFileGroup,
-    InputFileGroup,
-    StaticAncillaryFileGroup,
-    WorkerSettings,
-)
-from cal_disp.config.pge_runconfig import (
-    OutputOptions,
-    PrimaryExecutable,
-    ProductPathGroup,
-    RunConfig,
-)
-
 # Show defaults for all options
 click.option = functools.partial(click.option, show_default=True)
 
@@ -32,7 +19,8 @@ DEFAULT_PRODUCT_VERSION: Final[str] = "1.0"
 
 def create_config(
     disp_file: Path,
-    calibration_grid: Path,
+    calibration_grid_latlon_file: Path,
+    calibration_grid_ts_dir: Path,
     frame_id: int,
     algorithm_params_file: Path,
     los_file: Path,
@@ -62,8 +50,10 @@ def create_config(
     ----------
     disp_file : Path
         Input displacement file to calibrate.
-    calibration_grid : Path
-        GNSS calibration reference grid (parquet format).
+    calibration_grid_latlon_file : Path
+        UNR grid lookup table (grid_latlon_lookup_v0.2.txt).
+    calibration_grid_ts_dir : Path
+        Directory containing UNR .tenv8 timeseries files.
     frame_id : int
         Frame ID of the DISP frame.
     algorithm_params_file : Path
@@ -122,10 +112,23 @@ def create_config(
         If configuration parameters are invalid.
 
     """
+    from cal_disp.config import (
+        DynamicAncillaryFileGroup,
+        InputFileGroup,
+        StaticAncillaryFileGroup,
+        WorkerSettings,
+    )
+    from cal_disp.config.pge_runconfig import (
+        OutputOptions,
+        PrimaryExecutable,
+        ProductPathGroup,
+        RunConfig,
+    )
+
     # Validate required inputs exist
     required_files = {
         "disp_file": disp_file,
-        "calibration_grid": calibration_grid,
+        "calibration_grid_latlon_file": calibration_grid_latlon_file,
         "algorithm_params_file": algorithm_params_file,
         "los_file": los_file,
         "dem_file": dem_file,
@@ -133,6 +136,16 @@ def create_config(
     for name, path in required_files.items():
         if not path.exists():
             raise FileNotFoundError(f"{name} not found: {path}")
+
+    # Validate calibration grid directory
+    if not calibration_grid_ts_dir.exists():
+        raise FileNotFoundError(
+            f"calibration_grid_ts_dir not found: {calibration_grid_ts_dir}"
+        )
+    if not calibration_grid_ts_dir.is_dir():
+        raise ValueError(
+            f"calibration_grid_ts_dir must be a directory: {calibration_grid_ts_dir}"
+        )
 
     # Validate optional single files if provided
     optional_files = {
@@ -180,7 +193,8 @@ def create_config(
     # Resolve to absolute paths unless keeping relative
     if not keep_relative:
         disp_file = disp_file.resolve()
-        calibration_grid = calibration_grid.resolve()
+        calibration_grid_latlon_file = calibration_grid_latlon_file.resolve()
+        calibration_grid_ts_dir = calibration_grid_ts_dir.resolve()
         algorithm_params_file = algorithm_params_file.resolve()
         los_file = los_file.resolve()
         dem_file = dem_file.resolve()
@@ -209,7 +223,8 @@ def create_config(
     # Build configuration groups
     input_file_group = InputFileGroup(
         disp_file=disp_file,
-        calibration_reference_grid=calibration_grid,
+        calibration_reference_latlon_file=calibration_grid_latlon_file,
+        calibration_reference_grid_dir=calibration_grid_ts_dir,
         frame_id=frame_id,
     )
 
@@ -282,11 +297,18 @@ def create_config(
     help="Input displacement file.",
 )
 @click.option(
-    "--calibration-grid",
-    "-g",
+    "--calibration-grid-latlon",
+    "-cl",
     type=click.Path(exists=True, path_type=Path),
     required=True,
-    help="GNSS calibration reference grid (parquet).",
+    help="UNR grid lookup table (grid_latlon_lookup_v0.2.txt).",
+)
+@click.option(
+    "--calibration-grid-dir",
+    "-cd",
+    type=click.Path(exists=True, path_type=Path, file_okay=False, dir_okay=True),
+    required=True,
+    help="Directory containing UNR .tenv8 timeseries files.",
 )
 @click.option(
     "--frame-id",
@@ -416,7 +438,8 @@ def create_config(
 def config_cli(
     config_file: Path,
     disp_file: Path,
-    calibration_grid: Path,
+    calibration_grid_latlon: Path,
+    calibration_grid_dir: Path,
     frame_id: int,
     algorithm_params: Path,
     los_file: Path,
@@ -449,30 +472,32 @@ def config_cli(
     --------
     Basic usage with required files:
 
-        cal-disp config \\
-            --disp-file data/disp.h5 \\
-            --calibration-grid data/cal_grid.parquet \\
-            --frame-id 12345 \\
-            --algorithm-params config/params.yaml \\
-            --los-file data/los.h5 \\
-            --dem-file data/dem.h5 \\
-            --output-dir outputs/ \\
+        cal-disp config \
+            --disp-file data/disp.h5 \
+            --calibration-grid-latlon data/unr/grid_latlon_lookup_v0.2.txt \
+            --calibration-grid-dir data/unr/ \
+            --frame-id 8882 \
+            --algorithm-params config/params.yaml \
+            --los-file data/los.h5 \
+            --dem-file data/dem.h5 \
+            --output-dir outputs/ \
             --work-dir scratch/
 
     With optional corrections:
 
-        cal-disp config \\
-            --disp-file data/disp.h5 \\
-            --calibration-grid data/cal_grid.parquet \\
-            --frame-id 12345 \\
-            --algorithm-params config/params.yaml \\
-            --los-file data/los.h5 \\
-            --dem-file data/dem.h5 \\
-            --output-dir outputs/ \\
-            --work-dir scratch/ \\
-            --ref-tropo-files data/tropo_ref_1.h5 \\
-            --ref-tropo-files data/tropo_ref_2.h5 \\
-            --sec-tropo-files data/tropo_sec.h5 \\
+        cal-disp config \
+            --disp-file data/disp.h5 \
+            --calibration-grid-latlon data/unr/grid_latlon_lookup_v0.2.txt \
+            --calibration-grid-dir data/unr/ \
+            --frame-id 8882 \
+            --algorithm-params config/params.yaml \
+            --los-file data/los.h5 \
+            --dem-file data/dem.h5 \
+            --output-dir outputs/ \
+            --work-dir scratch/ \
+            --ref-tropo-files data/tropo_ref_1.h5 \
+            --ref-tropo-files data/tropo_ref_2.h5 \
+            --sec-tropo-files data/tropo_sec.h5 \
             --mask-file data/water_mask.tif
 
     """
@@ -485,7 +510,8 @@ def config_cli(
 
         config_path = create_config(
             disp_file=disp_file,
-            calibration_grid=calibration_grid,
+            calibration_grid_latlon_file=calibration_grid_latlon,
+            calibration_grid_ts_dir=calibration_grid_dir,
             frame_id=frame_id,
             algorithm_params_file=algorithm_params,
             los_file=los_file,

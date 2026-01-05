@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+from datetime import datetime
+
+import pandas as pd
+
+
 def bounds_contains(
     outer_bounds: tuple[float, float, float, float] | dict[str, float],
     inner_bounds: tuple[float, float, float, float] | dict[str, float],
@@ -146,3 +153,35 @@ def check_bounds_coverage(
         "contains": contains,
         "gaps": gaps,
     }
+
+
+def decimal_year_to_datetime(decimal_year: float) -> datetime:
+    """Convert decimal year to datetime.
+
+    Parameters
+    ----------
+    decimal_year : float
+        Year as decimal (e.g., 2024.5 for mid-2024).
+
+    Returns
+    -------
+    datetime
+        Corresponding datetime object.
+
+    Examples
+    --------
+    >>> decimal_year_to_datetime(2024.0)
+    datetime(2024, 1, 1, 0, 0)
+    >>> decimal_year_to_datetime(2024.5)
+    datetime(2024, 7, 2, 12, 0)
+
+    """
+    year = int(decimal_year)
+    remainder = decimal_year - year
+
+    year_start = datetime(year, 1, 1)
+    year_end = datetime(year + 1, 1, 1)
+    days_in_year = (year_end - year_start).days
+
+    delta_days = remainder * days_in_year
+    return year_start + pd.Timedelta(days=delta_days)

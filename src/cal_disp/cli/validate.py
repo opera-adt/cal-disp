@@ -4,9 +4,6 @@ from pathlib import Path
 
 import click
 
-from cal_disp._log import setup_logging
-from cal_disp.validate import compare_cal_products
-
 
 @click.command("validate")
 @click.argument("reference", type=click.Path(exists=True, path_type=Path))
@@ -54,6 +51,9 @@ def validate_cli(
         cal-disp validate reference.nc test.nc --group main
 
     """
+    from cal_disp._log import setup_logging
+    from cal_disp.validate import compare_cal_products
+
     debug = ctx.obj.get("debug", False)
     setup_logging(logger_name="cal_disp", level="DEBUG" if debug else "INFO")
 

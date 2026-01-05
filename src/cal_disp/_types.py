@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from os import PathLike
 from typing import TYPE_CHECKING, Protocol, Union, runtime_checkable
 

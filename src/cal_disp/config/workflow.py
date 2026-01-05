@@ -100,13 +100,11 @@ class CalibrationWorkflow(YamlModel):
         Uses object.__setattr__() to bypass validate_assignment and avoid recursion.
         """
         if not self.keep_paths_relative:
-            # Use object.__setattr__() to bypass validation and avoid recursion
             object.__setattr__(self, "work_directory", self.work_directory.resolve())
             object.__setattr__(
                 self, "output_directory", self.output_directory.resolve()
             )
 
-            # Resolve log file path if provided
             if self.log_file is not None:
                 object.__setattr__(self, "log_file", self.log_file.resolve())
 
@@ -116,7 +114,6 @@ class CalibrationWorkflow(YamlModel):
     def _set_default_log_file(self) -> "CalibrationWorkflow":
         """Set default log file path if not provided."""
         if self.log_file is None:
-            # Use object.__setattr__() to bypass validation
             object.__setattr__(self, "log_file", self.work_directory / "cal_disp.log")
 
         return self
@@ -131,9 +128,14 @@ class CalibrationWorkflow(YamlModel):
         else:
             if self.input_options.disp_file is None:
                 errors.append("disp_file must be provided in input_options")
-            if self.input_options.calibration_reference_grid is None:
+            if self.input_options.calibration_reference_latlon_file is None:
                 errors.append(
-                    "calibration_reference_grid must be provided in input_options"
+                    "calibration_reference_latlon_file must be provided in"
+                    " input_options"
+                )
+            if self.input_options.calibration_reference_grid_dir is None:
+                errors.append(
+                    "calibration_reference_grid_dir must be provided in input_options"
                 )
 
         # Check dynamic ancillaries
@@ -258,9 +260,14 @@ class CalibrationWorkflow(YamlModel):
                 [
                     "Input Files:",
                     f"  DISP file:        {self.input_options.disp_file}",
+                    f"  Frame ID:         {self.input_options.frame_id}",
                     (
-                        "  Calibration grid:"
-                        f" {self.input_options.calibration_reference_grid}"
+                        "  UNR lookup:       "
+                        f"{self.input_options.calibration_reference_latlon_file}"
+                    ),
+                    (
+                        "  UNR grid dir:     "
+                        f"{self.input_options.calibration_reference_grid_dir}"
                     ),
                     "",
                 ]
@@ -269,7 +276,7 @@ class CalibrationWorkflow(YamlModel):
             lines.extend(
                 [
                     "Input Files:",
-                    "   Not configured!",
+                    "  Not configured!",
                     "",
                 ]
             )
@@ -311,7 +318,7 @@ class CalibrationWorkflow(YamlModel):
         if not status["ready"]:
             lines.extend(
                 [
-                    "  Workflow Status: NOT READY",
+                    "Workflow Status: NOT READY",
                     "Errors:",
                 ]
             )
@@ -320,7 +327,7 @@ class CalibrationWorkflow(YamlModel):
         else:
             lines.extend(
                 [
-                    " Workflow Status: READY",
+                    "Workflow Status: READY",
                 ]
             )
 
@@ -332,7 +339,7 @@ class CalibrationWorkflow(YamlModel):
                 ]
             )
             for warning in status["warnings"]:
-                lines.append(f"  ⚠️  {warning}")
+                lines.append(f"  WARNING: {warning}")
 
         lines.append("=" * 70)
 
@@ -352,9 +359,12 @@ class CalibrationWorkflow(YamlModel):
             work_directory=Path("./work"),
             output_directory=Path("./output"),
             input_options=InputFileGroup(
-                disp_file=Path("input/disp.nc"),
-                calibration_reference_grid=Path("input/cal_grid.parquet"),
-                frame_id=1,
+                disp_file=Path("input/disp_frame_8882.nc"),
+                calibration_reference_latlon_file=Path(
+                    "input/unr/grid_latlon_lookup_v0.2.txt"
+                ),
+                calibration_reference_grid_dir=Path("input/unr/"),
+                frame_id=8882,
             ),
             dynamic_ancillary_options=DynamicAncillaryFileGroup(
                 algorithm_parameters_file="algorithm.yaml",

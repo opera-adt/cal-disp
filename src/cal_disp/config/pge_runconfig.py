@@ -242,12 +242,14 @@ class RunConfig(YamlModel):
         errors: List[str] = []
         warnings: List[str] = []
 
-        # Check if None instead
         if self.input_file_group.disp_file is None:
             errors.append("disp_file must be provided")
 
-        if self.input_file_group.calibration_reference_grid is None:
-            errors.append("calibration_reference_grid must be provided")
+        if self.input_file_group.calibration_reference_latlon_file is None:
+            errors.append("calibration_reference_latlon_file must be provided")
+
+        if self.input_file_group.calibration_reference_grid_dir is None:
+            errors.append("calibration_reference_grid_dir must be provided")
 
         # Check dynamic ancillary files if provided
         if self.dynamic_ancillary_group:
@@ -290,7 +292,15 @@ class RunConfig(YamlModel):
             "",
             "Input Files:",
             f"  DISP file:        {self.input_file_group.disp_file}",
-            f"  Calibration grid: {self.input_file_group.calibration_reference_grid}",
+            f"  Frame ID:         {self.input_file_group.frame_id}",
+            (
+                "  UNR lookup:       "
+                f"{self.input_file_group.calibration_reference_latlon_file}"
+            ),
+            (
+                "  UNR grid dir:     "
+                f"{self.input_file_group.calibration_reference_grid_dir}"
+            ),
             "",
             "Worker Settings:",
             f"  Workers:          {self.worker_settings.n_workers}",
@@ -329,18 +339,18 @@ class RunConfig(YamlModel):
         status = self.validate_ready_to_run()
         lines.append("")
         if not status["ready"]:
-            lines.append("⚠️  Status: NOT READY")
+            lines.append("Status: NOT READY")
             lines.append("Errors:")
             for error in status["errors"]:
                 lines.append(f"  - {error}")
         else:
-            lines.append("✓ Status: READY")
+            lines.append("Status: READY")
 
         if status["warnings"]:
             lines.append("")
             lines.append("Warnings:")
             for warning in status["warnings"]:
-                lines.append(f"  ⚠️  {warning}")
+                lines.append(f"  WARNING: {warning}")
 
         lines.append("=" * 70)
 
@@ -358,9 +368,12 @@ class RunConfig(YamlModel):
         """
         return cls(
             input_file_group=InputFileGroup(
-                disp_file=Path("input/disp.h5"),
-                calibration_reference_grid=Path("input/cal_grid.parquet"),
-                frame_id=1,
+                disp_file=Path("input/disp_frame_8882.h5"),
+                calibration_reference_latlon_file=Path(
+                    "input/unr/grid_latlon_lookup_v0.2.txt"
+                ),
+                calibration_reference_grid_dir=Path("input/unr/"),
+                frame_id=8882,
             ),
             dynamic_ancillary_group=DynamicAncillaryFileGroup(
                 algorithm_parameters_file=Path("config/algorithm_params.yaml"),
@@ -425,7 +438,7 @@ class RunConfig(YamlModel):
         with_comments: bool = True,  # noqa: ARG002
         by_alias: bool = True,
         indent_per_level: int = 2,
-    ) -> None:  # Note: return type can be None or Any, both work
+    ) -> None:
         """Save configuration to YAML file with name wrapper.
 
         Parameters

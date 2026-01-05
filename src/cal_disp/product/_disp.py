@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -496,7 +498,7 @@ class DispProduct:
         return self.path.exists()
 
     def __repr__(self) -> str:
-        """Concise string representation."""
+        """Return a string representation."""
         return (
             f"DispProduct(frame={self.frame_id}, "
             f"{self.primary_date.date()} → {self.secondary_date.date()}, "

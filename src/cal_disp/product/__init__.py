@@ -10,7 +10,7 @@ from ._tropo import (
     interpolate_to_dem_surface,
 )
 from ._unr import UnrGrid
-from ._utils import bounds_contains, check_bounds_coverage
+from ._utils import bounds_contains, check_bounds_coverage, decimal_year_to_datetime
 
 __all__ = [
     # Product classes
@@ -26,4 +26,5 @@ __all__ = [
     # Utilities
     "bounds_contains",
     "check_bounds_coverage",
+    "decimal_year_to_datetime",
 ]

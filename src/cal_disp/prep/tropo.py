@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 from cal_disp.product import (

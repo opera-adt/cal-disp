@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -358,7 +360,7 @@ class CalProduct:
                     {
                         "description": (
                             "3D displacement model at coarse resolution (e.g., from"
-                            " GNSS interpolation or deformation model)"
+                            " GNSS grid or deformation model)"
                         ),
                         "units": "meters",
                         "reference_frame": "ENU (East-North-Up)",

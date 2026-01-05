@@ -16,8 +16,12 @@ class InputFileGroup(YamlModel):
     ----------
     disp_file : Path
         Path to DISP file.
-    calibration_reference_grid : Path
-        Path to UNR calibration reference file (parquet format).
+    calibration_reference_latlon_file : Path
+        Path to UNR grid lookup table (e.g., grid_latlon_lookup_v0.2.txt).
+    calibration_reference_grid_dir : Path
+        Directory containing UNR .tenv8 timeseries files.
+    frame_id : int
+        Frame ID of the DISP frame.
 
     """
 
@@ -26,9 +30,14 @@ class InputFileGroup(YamlModel):
         description="Path to DISP file.",
     )
 
-    calibration_reference_grid: RequiredPath = Field(
+    calibration_reference_latlon_file: RequiredPath = Field(
         ...,
-        description="Path to UNR calibration reference file [parquet].",
+        description="Path to UNR grid lookup table (grid_latlon_lookup_v0.2.txt).",
+    )
+
+    calibration_reference_grid_dir: RequiredPath = Field(
+        ...,
+        description="Directory containing UNR .tenv8 timeseries files.",
     )
 
     frame_id: int = Field(
@@ -39,6 +48,51 @@ class InputFileGroup(YamlModel):
     model_config = ConfigDict(
         extra="forbid",
     )
+
+    @field_validator("disp_file")
+    @classmethod
+    def validate_disp_file(cls, v: Path) -> Path:
+        """Validate DISP file has .nc extension."""
+        if v.suffix not in [".nc", ".h5"]:
+            msg = f"DISP file must be .nc or .h5, got {v.suffix}"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("calibration_reference_latlon_file")
+    @classmethod
+    def validate_latlon_file(cls, v: Path) -> Path:
+        """Validate latlon file is a lookup table."""
+        if not v.name.startswith("grid_latlon_lookup"):
+            msg = f"Expected grid_latlon_lookup file, got {v.name}"
+            raise ValueError(msg)
+        if not v.name.endswith(".txt"):
+            msg = f"Lookup table must be .txt, got {v.suffix}"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("calibration_reference_grid_dir")
+    @classmethod
+    def validate_grid_dir(cls, v: Path) -> Path:
+        """Validate grid directory contains .tenv8 files."""
+        if not v.is_dir():
+            msg = f"Grid directory does not exist: {v}"
+            raise ValueError(msg)
+
+        tenv8_files = list(v.glob("*.tenv8"))
+        if not tenv8_files:
+            msg = f"No .tenv8 files found in {v}"
+            raise ValueError(msg)
+
+        return v
+
+    @field_validator("frame_id")
+    @classmethod
+    def validate_frame_id(cls, v: int) -> int:
+        """Validate frame ID is reasonable."""
+        if not 1 <= v <= 99999:
+            msg = f"Frame ID must be between 1 and 99999, got {v}"
+            raise ValueError(msg)
+        return v
 
 
 class DynamicAncillaryFileGroup(YamlModel):
