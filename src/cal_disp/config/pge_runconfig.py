@@ -137,12 +137,12 @@ class RunConfig(YamlModel):
         description="Configuration for required input files.",
     )
 
-    dynamic_ancillary_file_group: Optional[DynamicAncillaryFileGroup] = Field(
+    dynamic_ancillary_group: Optional[DynamicAncillaryFileGroup] = Field(
         default=None,
         description="Dynamic ancillary files configuration.",
     )
 
-    static_ancillary_file_group: Optional[StaticAncillaryFileGroup] = Field(
+    static_ancillary_group: Optional[StaticAncillaryFileGroup] = Field(
         default=None,
         description="Static ancillary files configuration.",
     )
@@ -194,32 +194,27 @@ class RunConfig(YamlModel):
         >>> run_config = RunConfig.from_yaml_file("pge_config.yaml")
         >>> workflow = run_config.to_workflow()
         >>> workflow.create_directories()
-        >>> workflow.run()
 
         """
-        # Set up directories
-        scratch_directory = self.product_path_group.scratch_path
-        output_directory = self.product_path_group.output_path
-
         # Set up log file
         log_file = self.log_file
         if log_file is None:
-            log_file = output_directory / "cal_disp_workflow.log"
+            log_file = self.product_path_group.output_path / "cal_disp.log"
 
         # Create the workflow
         workflow = CalibrationWorkflow(
             # Input files
             input_options=self.input_file_group,
             # Ancillary files
-            dynamic_ancillary_file_options=self.dynamic_ancillary_file_group,
-            static_ancillary_file_options=self.static_ancillary_file_group,
+            dynamic_ancillary_options=self.dynamic_ancillary_group,
+            static_ancillary_options=self.static_ancillary_group,
             # Directories
-            work_directory=scratch_directory,
-            output_directory=output_directory,
+            work_directory=self.product_path_group.scratch_path,
+            output_directory=self.product_path_group.output_path,
             # Settings
             worker_settings=self.worker_settings,
             log_file=log_file,
-            # Don't resolve paths yet - let the workflow handle it
+            # Resolve paths to absolute
             keep_paths_relative=False,
         )
 
@@ -255,11 +250,13 @@ class RunConfig(YamlModel):
             errors.append("calibration_reference_grid must be provided")
 
         # Check dynamic ancillary files if provided
-        if self.dynamic_ancillary_file_group:
-            if self.dynamic_ancillary_file_group.algorithm_parameters_file is None:
+        if self.dynamic_ancillary_group:
+            if self.dynamic_ancillary_group.algorithm_parameters_file is None:
                 warnings.append("Missing algorithm_parameters_file")
-            if self.dynamic_ancillary_file_group.geometry_file is None:
-                warnings.append("Missing geometry_file")
+            if self.dynamic_ancillary_group.dem_file is None:
+                warnings.append("Missing dem")
+            if self.dynamic_ancillary_group.los_file is None:
+                warnings.append("Missing los_file")
 
         return {
             "ready": len(errors) == 0,
@@ -302,22 +299,22 @@ class RunConfig(YamlModel):
         ]
 
         # Dynamic ancillary files
-        if self.dynamic_ancillary_file_group:
+        if self.dynamic_ancillary_group:
             lines.extend(
                 [
                     "",
                     "Dynamic Ancillary Files:",
                 ]
             )
-            dynamic_files = self.dynamic_ancillary_file_group.get_all_files()
+            dynamic_files = self.dynamic_ancillary_group.get_all_files()
             for name, path in list(dynamic_files.items())[:5]:
                 lines.append(f"  {name}: {path}")
             if len(dynamic_files) > 5:
                 lines.append(f"  ... and {len(dynamic_files) - 5} more")
 
         # Static ancillary files
-        if self.static_ancillary_file_group:
-            static_files = self.static_ancillary_file_group.get_all_files()
+        if self.static_ancillary_group:
+            static_files = self.static_ancillary_group.get_all_files()
             if static_files:
                 lines.extend(
                     [
@@ -365,9 +362,10 @@ class RunConfig(YamlModel):
                 calibration_reference_grid=Path("input/cal_grid.parquet"),
                 frame_id=1,
             ),
-            dynamic_ancillary_file_group=DynamicAncillaryFileGroup(
+            dynamic_ancillary_group=DynamicAncillaryFileGroup(
                 algorithm_parameters_file=Path("config/algorithm_params.yaml"),
-                static_layers_file=Path("input/geometry.h5"),
+                static_dem_file=Path("input/dem.tif"),
+                static_los_file=Path("input/los.tif"),
             ),
             product_path_group=ProductPathGroup(
                 scratch_path=Path("./scratch"), output_path=Path("./output")

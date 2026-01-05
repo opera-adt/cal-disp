@@ -211,7 +211,7 @@ class CalibrationWorkflow(YamlModel):
         if format_string is None:
             format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
-        logger = logging.getLogger("calibration_workflow")
+        logger = logging.getLogger("cal_disp")
         logger.setLevel(level)
         logger.handlers.clear()
 

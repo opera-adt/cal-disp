@@ -102,18 +102,18 @@ class CalProduct:
 
     # Main group layers (full resolution)
     CAL_LAYERS = [
-        "calibration",  # Main correction (subtract from DISP)
-        "calibration_std",  # Uncertainty
+        "calibration",
+        "calibration_std",
     ]
 
     # model_3d group layers (coarse resolution)
     MODEL_3D_LAYERS = [
-        "north_south",  # North-south displacement component
-        "east_west",  # East-west displacement component
-        "up_down",  # Up-down displacement component
-        "north_south_std",  # Uncertainty - north
-        "east_west_std",  # Uncertainty - east
-        "up_down_std",  # Uncertainty - up
+        "north_south",
+        "east_west",
+        "up_down",
+        "north_south_std",
+        "east_west_std",
+        "up_down_std",
     ]
 
     def __post_init__(self) -> None:
@@ -157,7 +157,9 @@ class CalProduct:
         Examples
         --------
         >>> cal = CalProduct.from_path(
-        "OPERA_L4_CAL-DISP-S1_IW_F08882_VV_20220111T002651Z_20220722T002657Z_v1.0_20251227T123456Z.nc")
+        ...     "OPERA_L4_CAL-DISP-S1_IW_F08882_VV_20220111T002651Z_"
+        ...     "20220722T002657Z_v1.0_20251227T123456Z.nc"
+        ... )
         >>> cal.sensor
         'S1'
 
@@ -196,6 +198,7 @@ class CalProduct:
         calibration_std: xr.DataArray | None = None,
         model_3d: dict[str, xr.DataArray] | None = None,
         model_3d_std: dict[str, xr.DataArray] | None = None,
+        spatial_ref: xr.DataArray | None = None,
         metadata: dict[str, str] | None = None,
         version: str = "1.0",
     ) -> "CalProduct":
@@ -208,7 +211,7 @@ class CalProduct:
         disp_product : DispProduct
             Original DISP product (for metadata).
         output_dir : Path or str
-            Output directory for NetCDF file.
+            Output directory for NetCDF file. Filename auto-generated.
         sensor : str, optional
             Sensor type: "S1" or "NI". Default is "S1".
         calibration_std : xr.DataArray or None, optional
@@ -218,6 +221,8 @@ class CalProduct:
             "north_south", "east_west", "up_down". Default is None.
         model_3d_std : dict[str, xr.DataArray] or None, optional
             3D displacement uncertainties (coarse resolution). Default is None.
+        spatial_ref : xr.DataArray or None, optional
+            Spatial reference data variable from input DISP product. Default is None.
         metadata : dict[str, str] or None, optional
             Additional metadata (e.g., GNSS reference epoch). Default is None.
         version : str, optional
@@ -232,37 +237,23 @@ class CalProduct:
         --------
         >>> from product import DispProduct, CalProduct
         >>>
-        >>> disp = DispProduct.from_path(
-        "OPERA_L3_DISP-S1_IW_F08882_VV_20220111T002651Z_20220722T002657Z_v1.0_20251027T005420Z.nc")
-        >>>
-        >>> # Full resolution calibration
-        >>> cal_full = calibration_at_30m_resolution
-        >>>
-        >>> # Coarse resolution 3D model (e.g., 90m from GNSS interpolation)
-        >>> model_coarse = {
-        ...     "north_south": disp_ns_90m,
-        ...     "east_west": disp_ew_90m,
-        ...     "up_down": disp_ud_90m,
-        ... }
+        >>> disp = DispProduct.from_path("input/disp.nc")
+        >>> ds = disp.open_dataset()
         >>>
         >>> cal = CalProduct.create(
         ...     calibration=cal_full,
         ...     disp_product=disp,
         ...     output_dir="output/",
         ...     calibration_std=cal_std,
-        ...     model_3d=model_coarse,
-        ...     model_3d_std={
-        ...         "north_south_std": disp_ns_std_90m,
-        ...         "east_west_std": disp_ew_std_90m,
-        ...         "up_down_std": disp_ud_std_90m,
-        ...     },
-        ...     metadata={
-        ...         "gnss_reference_epoch": "2020-01-01T00:00:00Z",
-        ...         "model_3d_resolution": "90m",
-        ...     },
+        ...     spatial_ref=ds["spatial_ref"],
+        ...     metadata={"gnss_reference_epoch": "2020-01-01T00:00:00Z"},
         ... )
+        >>> print(cal.filename)
+        OPERA_L4_CAL-DISP-S1_IW_F08882_VV_20220111T002651Z_20220722T002657Z_v1.0_20260104T123456Z.nc
 
         """
+        import rioxarray  # noqa: F401
+
         if sensor not in {"S1", "NI"}:
             raise ValueError(f"Invalid sensor: {sensor}. Must be 'S1' or 'NI'")
 
@@ -279,11 +270,9 @@ class CalProduct:
             f"{disp_product.primary_date:%Y%m%dT%H%M%S}Z_"
             f"{disp_product.secondary_date:%Y%m%dT%H%M%S}Z_"
             f"v{version}_"
-            f"{production_date:%Y%m%dT%H%M%S}Z"
-            ".nc"
+            f"{production_date:%Y%m%dT%H%M%S}Z.nc"
         )
-
-        output_path = output_dir / filename
+        output_file = output_dir / filename
 
         # Build main group dataset (full resolution)
         data_vars = {"calibration": calibration}
@@ -291,8 +280,18 @@ class CalProduct:
         if calibration_std is not None:
             data_vars["calibration_std"] = calibration_std
 
+        # Add spatial_ref as data variable if provided
+        if spatial_ref is not None:
+            data_vars["spatial_ref"] = spatial_ref
+
         # Create main dataset
         ds = xr.Dataset(data_vars)
+
+        # Write CRS using rioxarray if spatial_ref contains crs_wkt
+        if spatial_ref is not None:
+            crs_wkt = spatial_ref.attrs.get("crs_wkt")
+            if crs_wkt:
+                ds = ds.rio.write_crs(crs_wkt)
 
         # Add global attributes
         ds.attrs.update(
@@ -323,7 +322,7 @@ class CalProduct:
             ds.attrs.update(metadata)
 
         # Save main group
-        ds.to_netcdf(output_path, engine="h5netcdf")
+        ds.to_netcdf(output_file, engine="h5netcdf")
 
         # Create model_3d group if 3D components provided (coarse resolution)
         if model_3d or model_3d_std:
@@ -341,8 +340,18 @@ class CalProduct:
                     if comp in model_3d_std:
                         model_data_vars[comp] = model_3d_std[comp]
 
+            # Add spatial_ref to model_3d group as well
+            if spatial_ref is not None:
+                model_data_vars["spatial_ref"] = spatial_ref
+
             if model_data_vars:
                 ds_model = xr.Dataset(model_data_vars)
+
+                # Write CRS to model_3d group if available
+                if spatial_ref is not None:
+                    crs_wkt = spatial_ref.attrs.get("crs_wkt")
+                    if crs_wkt:
+                        ds_model = ds_model.rio.write_crs(crs_wkt)
 
                 # Add model group attributes
                 ds_model.attrs.update(
@@ -358,14 +367,14 @@ class CalProduct:
 
                 # Append to existing file as model_3d group
                 ds_model.to_netcdf(
-                    output_path,
+                    output_file,
                     mode="a",
                     group="model_3d",
                     engine="h5netcdf",
                 )
 
         return cls(
-            path=output_path,
+            path=output_file,
             frame_id=disp_product.frame_id,
             primary_date=disp_product.primary_date,
             secondary_date=disp_product.secondary_date,
@@ -464,7 +473,14 @@ class CalProduct:
             return False
 
     def get_epsg(self) -> int | None:
-        """Get EPSG code from spatial reference."""
+        """Get EPSG code from spatial reference.
+
+        Returns
+        -------
+        int or None
+            EPSG code if available, None otherwise.
+
+        """
         ds = self.open_dataset()
 
         if "spatial_ref" in ds:
@@ -476,7 +492,14 @@ class CalProduct:
         return None
 
     def get_bounds(self) -> dict[str, float]:
-        """Get bounds in native projection."""
+        """Get bounds in native projection.
+
+        Returns
+        -------
+        dict[str, float]
+            Bounds with keys: left, bottom, right, top.
+
+        """
         ds = self.open_dataset()
 
         x = ds.x.values
@@ -490,7 +513,19 @@ class CalProduct:
         }
 
     def get_bounds_wgs84(self) -> dict[str, float]:
-        """Get bounds transformed to WGS84."""
+        """Get bounds transformed to WGS84.
+
+        Returns
+        -------
+        dict[str, float]
+            Bounds in WGS84 with keys: west, south, east, north.
+
+        Raises
+        ------
+        ValueError
+            If spatial_ref or crs_wkt is missing.
+
+        """
         ds = self.open_dataset()
 
         x = ds.x.values
@@ -552,6 +587,11 @@ class CalProduct:
         -------
         Path
             Path to created GeoTIFF.
+
+        Raises
+        ------
+        ValueError
+            If layer not found in specified group.
 
         Examples
         --------
@@ -649,6 +689,9 @@ class CalProduct:
         # Main group
         ds = self.open_dataset()
         for var in ds.data_vars:
+            if var == "spatial_ref":
+                continue
+
             data = ds[var].values
             valid_data = data[~np.isnan(data)]
 
@@ -666,6 +709,9 @@ class CalProduct:
             ds_model = self.open_model_3d()
 
             for var in ds_model.data_vars:
+                if var == "spatial_ref":
+                    continue
+
                 data = ds_model[var].values
                 valid_data = data[~np.isnan(data)]
 
@@ -680,7 +726,24 @@ class CalProduct:
         return summary
 
     def _get_transform(self, ds: xr.Dataset) -> Affine:
-        """Extract affine transform from dataset."""
+        """Extract affine transform from dataset.
+
+        Parameters
+        ----------
+        ds : xr.Dataset
+            Dataset with spatial_ref containing GeoTransform.
+
+        Returns
+        -------
+        Affine
+            Affine transformation.
+
+        Raises
+        ------
+        ValueError
+            If GeoTransform not found.
+
+        """
         gt = ds.spatial_ref.attrs.get("GeoTransform")
         if gt is None:
             raise ValueError("No GeoTransform found in spatial_ref")
@@ -689,7 +752,24 @@ class CalProduct:
         return Affine(vals[1], vals[2], vals[0], vals[4], vals[5], vals[3])
 
     def _get_crs(self, ds: xr.Dataset) -> str:
-        """Extract CRS from dataset."""
+        """Extract CRS from dataset.
+
+        Parameters
+        ----------
+        ds : xr.Dataset
+            Dataset with spatial_ref containing crs_wkt.
+
+        Returns
+        -------
+        str
+            CRS as WKT string.
+
+        Raises
+        ------
+        ValueError
+            If crs_wkt not found.
+
+        """
         crs_wkt = ds.spatial_ref.attrs.get("crs_wkt")
         if crs_wkt is None:
             raise ValueError("No crs_wkt found in spatial_ref")

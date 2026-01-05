@@ -27,7 +27,7 @@ version_tuple: VERSION_TUPLE
 commit_id: COMMIT_ID
 __commit_id__: COMMIT_ID
 
-__version__ = version = "0.0.post1.dev7+g0cd26ecc6.d20251202"
-__version_tuple__ = version_tuple = (0, 0, "post1", "dev7", "g0cd26ecc6.d20251202")
+__version__ = version = "0.0.post1.dev14+gf69e4d522.d20251230"
+__version_tuple__ = version_tuple = (0, 0, "post1", "dev14", "gf69e4d522.d20251230")
 
-__commit_id__ = commit_id = "g0cd26ecc6"
+__commit_id__ = commit_id = "gf69e4d522"

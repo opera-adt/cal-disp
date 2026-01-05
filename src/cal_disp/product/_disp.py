@@ -57,6 +57,7 @@ class DispProduct:
     frame_id: int
     primary_date: datetime
     secondary_date: datetime
+    sensor: str
     polarization: str
     version: str
     production_date: datetime
@@ -64,7 +65,8 @@ class DispProduct:
 
     # Filename pattern for OPERA DISP-S1 products
     _PATTERN = re.compile(
-        r"OPERA_L3_DISP-S1_"
+        r"OPERA_L3_DISP-"
+        r"(?P<sensor>\w+)_"
         r"(?P<mode>\w+)_"
         r"F(?P<frame_id>\d+)_"
         r"(?P<pol>\w+)_"
@@ -148,6 +150,7 @@ class DispProduct:
             secondary_date=datetime.strptime(
                 match.group("secondary"), "%Y%m%dT%H%M%SZ"
             ),
+            sensor=str(match.group("sensor")),
             polarization=match.group("pol"),
             version=match.group("version"),
             production_date=datetime.strptime(

@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import cmap
+import cmap as cm
 import matplotlib.pyplot as plt
 import numpy as np
-from disp_cal._types import PathOrStr
+import xarray as xr
 from numpy.typing import ArrayLike
 from scipy import ndimage
 
-DEFAULT_CMAP = cmap.Colormap("vik").to_mpl()
+from cal_disp._types import PathOrStr
+
+DEFAULT_CMAP = cm.Colormap("vik").to_mpl()
 
 
 def _resize_to_max_pixel_dim(arr: ArrayLike, max_dim_allowed=2048) -> np.ndarray:
@@ -56,9 +58,11 @@ def make_browse_image_from_nc(
     vmax: float = 0.10,
 ) -> None:
     """Create a PNG browse image for the output product from product in NetCDF file."""
-    arr = np.nanarray(input_filename)  # placeholder
-    mask = np.nanarray  # placeholder
+    with xr.open_dataset(input_filename) as ds:
+        arr = ds["calibration"].values
+
+    mask = np.isnan(arr)
 
     make_browse_image_from_arr(
-        output_filename, arr, mask, max_dim_allowed, cmap, vmin, vmax
+        output_filename, arr, ~mask, max_dim_allowed, cmap, vmin, vmax
     )
