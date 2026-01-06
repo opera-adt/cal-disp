@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from ._utils import OptionalPath, RequiredPath, _read_file_list_or_glob
 from ._yaml import STRICT_CONFIG_WITH_ALIASES, YamlModel
@@ -45,6 +45,8 @@ class InputFileGroup(YamlModel):
         description="Frame ID of the DISP frame.",
     )
 
+    skip_file_checks: bool = False
+
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -70,21 +72,6 @@ class InputFileGroup(YamlModel):
             raise ValueError(msg)
         return v
 
-    @field_validator("calibration_reference_grid_dir")
-    @classmethod
-    def validate_grid_dir(cls, v: Path) -> Path:
-        """Validate grid directory contains .tenv8 files."""
-        if not v.is_dir():
-            msg = f"Grid directory does not exist: {v}"
-            raise ValueError(msg)
-
-        tenv8_files = list(v.glob("*.tenv8"))
-        if not tenv8_files:
-            msg = f"No .tenv8 files found in {v}"
-            raise ValueError(msg)
-
-        return v
-
     @field_validator("frame_id")
     @classmethod
     def validate_frame_id(cls, v: int) -> int:
@@ -93,6 +80,22 @@ class InputFileGroup(YamlModel):
             msg = f"Frame ID must be between 1 and 99999, got {v}"
             raise ValueError(msg)
         return v
+
+    @model_validator(mode="after")
+    def validate_grid_dir(self) -> "InputFileGroup":
+        """Validate grid directory contains .tenv8 files."""
+        if self.skip_file_checks:
+            return self
+
+        v = self.calibration_reference_grid_dir
+        if not v.exists():
+            raise ValueError(f"Grid directory does not exist: {v}")
+        if not v.is_dir():
+            raise ValueError(f"Grid directory is not a directory: {v}")
+        if not any(v.glob("*.tenv8")):
+            raise ValueError(f"No .tenv8 files found in {v}")
+
+        return self
 
 
 class DynamicAncillaryFileGroup(YamlModel):

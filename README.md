@@ -22,7 +22,7 @@ or install within your existing env with mamba.
 
 3. Install `venti` and `cal-disp` via pip in editable mode
 ```bash
-python -m pip install --no-deps -e venti/ geepers/ cal-disp/
+python -m pip install --no-deps -e venti/ cal-disp/
 ```
 
 ### Setup for contributing

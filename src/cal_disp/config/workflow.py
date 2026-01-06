@@ -365,6 +365,7 @@ class CalibrationWorkflow(YamlModel):
                 ),
                 calibration_reference_grid_dir=Path("input/unr/"),
                 frame_id=8882,
+                skip_file_checks=True,
             ),
             dynamic_ancillary_options=DynamicAncillaryFileGroup(
                 algorithm_parameters_file="algorithm.yaml",
@@ -388,6 +389,7 @@ class CalibrationWorkflow(YamlModel):
         return cls(
             work_directory=Path("./work"),
             output_directory=Path("./output"),
+            keep_paths_relative=True,
         )
 
     model_config = STRICT_CONFIG_WITH_ALIASES

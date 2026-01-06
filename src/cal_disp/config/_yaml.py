@@ -6,7 +6,18 @@ import textwrap
 from io import StringIO
 from os import PathLike
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TextIO, TypedDict, Union, cast
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    TextIO,
+    TypedDict,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+)
 
 from pydantic import BaseModel, ConfigDict
 from ruamel.yaml import YAML
@@ -30,10 +41,36 @@ STRICT_CONFIG_WITH_ALIASES = ConfigDict(
 class ValidationResult(TypedDict):
     """Standard validation result structure."""
 
-    # Using dict subclass instead of TypedDict for runtime flexibility
     ready: bool
     errors: List[str]
     warnings: List[str]
+
+
+def _get_placeholder_value(annotation):
+    """Get a placeholder value for a type."""
+    origin = get_origin(annotation)
+
+    # Handle Annotated types
+    if hasattr(annotation, "__metadata__"):
+        args = get_args(annotation)
+        if args:
+            annotation = args[0]
+            origin = get_origin(annotation)
+
+    if annotation is str:
+        return ""
+    elif annotation is int:
+        return 0
+    elif annotation is bool:
+        return False
+    elif annotation is Path:
+        return Path()
+    elif origin in (list, List):
+        return []
+    elif origin in (dict, Dict):
+        return {}
+    else:
+        return None
 
 
 class YamlModel(BaseModel):
@@ -48,24 +85,7 @@ class YamlModel(BaseModel):
         by_alias: bool = True,
         indent_per_level: int = 2,
     ):
-        """Save configuration as a yaml file.
-
-        Used to record the default-filled version of a supplied yaml.
-
-        Parameters
-        ----------
-        output_path : Pathlike
-            Path to the yaml file to save.
-        with_comments : bool, default = False.
-            Whether to add comments containing the type/descriptions to all fields.
-        by_alias : bool, default = False.
-            Whether to use the alias names for the fields.
-            Passed to pydantic's ``to_json`` method.
-            https://docs.pydantic.dev/usage/exporting_models/#modeljson
-        indent_per_level : int, default = 2
-            Number of spaces to indent per level.
-
-        """
+        """Save configuration as a yaml file."""
         yaml_obj = self._to_yaml_obj(by_alias=by_alias)
 
         if with_comments:
@@ -76,12 +96,9 @@ class YamlModel(BaseModel):
             )
 
         y = YAML()
-        # https://yaml.readthedocs.io/en/latest/detail.html#indentation-of-block-sequences
         y.indent(
             offset=indent_per_level,
             mapping=indent_per_level,
-            # It is best to always have sequence >= offset + 2 but this is not enforced
-            # not following this advice might lead to invalid output.
             sequence=indent_per_level + 2,
         )
         if hasattr(output_path, "write"):
@@ -92,78 +109,56 @@ class YamlModel(BaseModel):
 
     @classmethod
     def from_yaml(cls, yaml_path: Filename):
-        """Load a configuration from a yaml file.
-
-        Parameters
-        ----------
-        yaml_path : Pathlike
-            Path to the yaml file to load.
-
-        Returns
-        -------
-        Config
-            Workflow configuration
-
-        """
+        """Load a configuration from a yaml file."""
         y = YAML(typ="safe")
         with open(yaml_path) as f:
             data = y.load(f)
-
         return cls(**data)
 
     @classmethod
     def print_yaml_schema(
         cls,
-        output_path: Union[Filename, TextIO] = sys.stdout,
+        output_path: Union[Filename, TextIO, None] = None,
         indent_per_level: int = 2,
     ):
         """Print/save an empty configuration with defaults filled in.
 
-        Ignores the required `input_file_list` input, so a user can
-        inspect all fields.
-
-        Parameters
-        ----------
-        output_path : Pathlike
-            Path or stream to save to the yaml file to.
-            By default, prints to stdout.
-        indent_per_level : int, default = 2
-            Number of spaces to indent per level.
-
+        Shows all fields including required ones (with empty placeholders).
         """
-        cls.model_construct().to_yaml(
+        # Resolve stdout at runtime so pytest can capture it
+        if output_path is None:
+            output_path = sys.stdout
+
+        # Get placeholder values for required fields
+        field_values = {}
+        for field_name, field_info in cls.model_fields.items():
+            if field_info.is_required():
+                field_values[field_name] = _get_placeholder_value(field_info.annotation)
+
+        cls.model_construct(**field_values).to_yaml(
             output_path, with_comments=True, indent_per_level=indent_per_level
         )
 
     def _to_yaml_obj(self, by_alias: bool = True) -> CommentedMap:
-        # Make the YAML object to add comments to
-        # We can't just do `dumps` for some reason, need a stream
+        """Convert model to YAML object."""
         y = YAML()
         ss = StringIO()
-        y.dump(json.loads(self.model_dump_json(by_alias=by_alias)), ss)
+        # Explicitly include all fields, even if unset or None
+        json_data = self.model_dump_json(
+            by_alias=by_alias,
+            exclude_unset=False,  # Include all fields
+            exclude_none=False,  # Include None values
+        )
+        y.dump(json.loads(json_data), ss)
         return y.load(ss.getvalue())
 
     def get_all_file_paths(
         self, include_none: bool = False, flatten_lists: bool = True
     ) -> Dict[str, Union[Path, List[Path]]]:
-        """Get all Path fields from the model.
-
-        Parameters
-        ----------
-        include_none : bool, default=False
-            Include fields with None values.
-        flatten_lists : bool, default=True
-            Flatten list fields to individual entries with indices.
-
-        Returns
-        -------
-        dict
-            Mapping of field names to Path objects.
-
-        """
+        """Get all Path fields from the model."""
         files: Dict[str, Path | list[Path]] = {}
 
-        for field_name, field_info in self.model_fields.items():
+        for field_name, field_info in self.__class__.model_fields.items():
             value = getattr(self, field_name)
 
             # Skip None values if requested
@@ -172,8 +167,7 @@ class YamlModel(BaseModel):
 
             # Check if field is Path or Optional[Path]
             if self._is_path_field(field_info):
-                if value is not None:
-                    files[field_name] = value
+                files[field_name] = value
 
             # Check if field is List[Path]
             elif self._is_path_list_field(field_info):
@@ -189,89 +183,68 @@ class YamlModel(BaseModel):
     @staticmethod
     def _is_path_field(field_info) -> bool:
         """Check if field is a Path type."""
-        from pathlib import Path
-        from typing import Union, get_args, get_origin
+        import types
+        from typing import Union
 
         annotation = field_info.annotation
 
         # Handle Annotated[Path, ...]
-        if get_origin(annotation) is not None:
-            # Check if it's Annotated
-            if hasattr(annotation, "__metadata__"):
-                # Get the actual type from Annotated
-                args = get_args(annotation)
-                if args:
-                    annotation = args[0]
+        origin = get_origin(annotation)
+        if origin is not None and hasattr(annotation, "__metadata__"):
+            args = get_args(annotation)
+            if args:
+                annotation = args[0]
 
         # Direct Path type
         if annotation is Path:
             return True
 
-        # Optional[Path] or Union[Path, None]
+        # Optional[Path] or Path | None
         origin = get_origin(annotation)
-        if origin is Union:
+        if origin is Union or (
+            hasattr(types, "UnionType") and origin is types.UnionType
+        ):
             args = get_args(annotation)
-            return Path in args or any(arg is Path for arg in args)
+            return Path in args
 
         return False
 
     @staticmethod
     def _is_path_list_field(field_info) -> bool:
         """Check if field is a List[Path] type."""
-        from pathlib import Path
-        from typing import Union, get_args, get_origin
+        import types
+        from typing import Union
 
         annotation = field_info.annotation
         origin = get_origin(annotation)
 
-        # Check if it's Optional[List[Path]]
-        if origin is Union:
+        # Check if it's Optional[List[Path]] or List[Path] | None
+        if origin is Union or (
+            hasattr(types, "UnionType") and origin is types.UnionType
+        ):
             args = get_args(annotation)
             for arg in args:
                 if arg is type(None):
                     continue
                 if get_origin(arg) in (list, List):
                     list_args = get_args(arg)
-                    if list_args:
-                        first_arg = list_args[0]
-                        if first_arg is Path:
-                            return True
+                    if list_args and list_args[0] is Path:
+                        return True
 
         # Check if it's List[Path]
         if origin in (list, List):
             args = get_args(annotation)
-            if not args:
-                return False
-            first_arg = args[0]
-            is_path_type: bool = first_arg is Path
-            return is_path_type
+            if args and args[0] is Path:
+                return True
 
         return False
 
     def validate_files_exist(
         self, raise_on_missing: bool = False
     ) -> Dict[str, Dict[str, Any]]:
-        """Validate all file paths exist on disk.
-
-        Parameters
-        ----------
-        raise_on_missing : bool, default=False
-            If True, raise FileNotFoundError on first missing file.
-
-        Returns
-        -------
-        dict
-            Detailed status for each file including existence, size, etc.
-
-        Raises
-        ------
-        FileNotFoundError
-            If raise_on_missing=True and any file is missing.
-
-        """
+        """Validate all file paths exist on disk."""
         results: Dict[str, Dict[str, Any]] = {}
 
-        # flatten_lists=True guarantees Dict[str, Path]
         file_paths: Dict[str, Path] = cast(
             Dict[str, Path], self.get_all_file_paths(flatten_lists=True)
         )
@@ -316,36 +289,25 @@ def _add_comments(
     schema: Dict[str, Any],
     indent: int = 0,
     definitions: Optional[dict] = None,
-    # variable specifying how much to indent per level
     indent_per_level: int = 2,
 ):
     """Add comments above each YAML field using the pydantic model schema."""
-    # Definitions are in schemas that contain nested pydantic Models
     defs = schema.get("$defs") if definitions is None else definitions
 
     for key, val in schema["properties"].items():
         reference = ""
-        # Get sub-schema if it exists
         if "$ref" in val:
-            # At top level, example is 'outputs': {'$ref': '#/defs/Outputs'}
             reference = val["$ref"]
         elif "allOf" in val:
-            # within 'defs', it looks like
-            #  'allOf': [{'$ref': '#/defs/HalfWindow'}]
             reference = val["allOf"][0]["$ref"]
 
         ref_key = reference.split("/")[-1]
-        if ref_key:  # The current property is a reference to something else
+        if ref_key:
             if "enum" in defs[ref_key]:  # type: ignore[index]
-                # This is just an Enum, not a sub schema.
-                # Overwrite the value with the referenced value
                 val = defs[ref_key]  # type: ignore[index] # noqa: PLW2901
             else:
-                # The reference is a sub schema, so we need to recurse
                 sub_schema = defs[ref_key]  # type: ignore[index]
-                # Get the sub-model
                 sub_loaded_yaml = loaded_yaml[key]
-                # recurse on the sub-model
                 _add_comments(
                     sub_loaded_yaml,
                     sub_schema,
@@ -355,7 +317,6 @@ def _add_comments(
                 )
                 continue
 
-        # add each description along with the type information
         desc = val.get("description", "No description.")
         desc = "\n".join(
             textwrap.wrap(
@@ -365,8 +326,6 @@ def _add_comments(
             )
         )
         if "anyOf" in val:
-            #   'anyOf': [{'type': 'string'}, {'type': 'null'}],
-            # Join the options with a pipe, like Python types
             type_str = " | ".join(t.get("type", "None") for t in val["anyOf"]).replace(
                 "null", "None"
             )
@@ -377,16 +336,12 @@ def _add_comments(
         type_line = f"\n  Type: {type_str}."
         choices = f"\n  Options: {val['enum']}." if "enum" in val else ""
 
-        # Combine the description/type/choices as the YAML comment
         comment = f"{desc}{type_line}{choices}".replace("..", ".")
 
-        # Prepend the required label for fields that are required
         is_required = key in schema.get("required", [])
         if is_required:
             comment = "REQUIRED: " + comment
 
-        # This method comes from here
-        # https://yaml.readthedocs.io/en/latest/detail.html#round-trip-including-comments
         loaded_yaml.yaml_set_comment_before_after_key(
             key,
             comment,

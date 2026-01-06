@@ -30,6 +30,19 @@ Homepage = "https://github.com/opera-adt/cal-disp1"
 [project.scripts]
 cal-disp = "cal_disp.cli:cli_app"
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "xarray",
+    "h5netcdf",
+    "netcdf4",
+    "rasterio",  # optional, for mask file fixture
+    "pydantic>=2.0",
+    "ruamel.yaml",
+    "types-PyYAML",
+]
+
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
 

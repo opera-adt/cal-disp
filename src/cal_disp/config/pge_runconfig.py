@@ -251,6 +251,16 @@ class RunConfig(YamlModel):
         if self.input_file_group.calibration_reference_grid_dir is None:
             errors.append("calibration_reference_grid_dir must be provided")
 
+        # Check for missing files only if required options are set
+        if self.input_file_group is not None:
+            missing = self.get_missing_files()
+            if missing:
+                warnings.append(f"Missing files: {', '.join(missing)}")
+
+        # Check dynamic ancillaries
+        if self.dynamic_ancillary_group is None:
+            errors.append("dynamic_ancillary_options must be provided")
+
         # Check dynamic ancillary files if provided
         if self.dynamic_ancillary_group:
             if self.dynamic_ancillary_group.algorithm_parameters_file is None:
@@ -366,7 +376,7 @@ class RunConfig(YamlModel):
             Example configuration with placeholder values.
 
         """
-        return cls(
+        return cls.model_construct(
             input_file_group=InputFileGroup(
                 disp_file=Path("input/disp_frame_8882.h5"),
                 calibration_reference_latlon_file=Path(
@@ -374,6 +384,7 @@ class RunConfig(YamlModel):
                 ),
                 calibration_reference_grid_dir=Path("input/unr/"),
                 frame_id=8882,
+                skip_file_checks=True,
             ),
             dynamic_ancillary_group=DynamicAncillaryFileGroup(
                 algorithm_parameters_file=Path("config/algorithm_params.yaml"),
