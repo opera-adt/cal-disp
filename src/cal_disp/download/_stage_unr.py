@@ -10,7 +10,6 @@ import pandas as pd
 import requests
 from opera_utils import get_frame_geojson
 from requests.adapters import HTTPAdapter
-from shapely.geometry import box
 from tqdm.contrib.concurrent import thread_map
 from urllib3.util.retry import Retry
 
@@ -324,6 +323,52 @@ def download_grid_files(
     return list(paths)
 
 
+def get_frame_grid_points(frame_gdf, grid_gdf, margin_deg=0.5):
+    """Get grid points within a buffered frame boundary using proper projections.
+
+    Parameters
+    ----------
+    frame_gdf : GeoDataFrame
+        GeoDataFrame containing OPERA DISP frame geometry
+    grid_gdf : GeoDataFrame
+        GeoDataFrame containing grid points
+    margin_deg : float, default=0.5
+        Buffer margin in degrees (converted to meters based on latitude)
+
+    Returns
+    -------
+    tuple
+        (grid_ids, grid_gdf_filtered) - list of grid IDs and filtered GeoDataFrame
+
+    """
+    # Get rough latitude from bounds to determine projection
+    bounds = frame_gdf.to_crs(epsg=4326).total_bounds  # [minx, miny, maxx, maxy]
+    center_lat = (bounds[1] + bounds[3]) / 2  # Average of min and max latitude
+
+    # Choose appropriate projection based on latitude
+    if center_lat > 50:  # Alaska/high latitudes
+        target_crs = "EPSG:3338"  # Alaska Albers Equal Area
+        margin_m = margin_deg * 111000  # Convert degrees to meters (~111km per degree)
+    else:
+        # For lower latitudes, use appropriate UTM zone
+        target_crs = frame_gdf.estimate_utm_crs()
+        margin_m = margin_deg * 111000
+
+    # Reproject to equal-area CRS (avoids distortion issues)
+    frame_projected = frame_gdf.to_crs(target_crs)
+    grid_projected = grid_gdf.to_crs(target_crs)
+
+    # Buffer the frame polygon in projected coordinates
+    buffered = frame_projected.buffer(margin_m)
+
+    # Filter grid points to buffered frame area
+    mask = grid_projected.intersects(buffered.iloc[0])
+    grid_gdf_filtered = grid_gdf[mask]  # Return in original CRS
+    grid_ids = grid_gdf_filtered.index.tolist()
+
+    return grid_ids, grid_gdf_filtered
+
+
 def download_unr_grid(
     frame_id: int,
     output_dir: Path,
@@ -401,19 +446,11 @@ def download_unr_grid(
         crs="EPSG:4326",
     )
 
-    # Get frame bounds and expand by margin
+    # Get frame geometry
     frame_gdf = get_frame_geojson([frame_id], as_geodataframe=True)
-    west, south, east, north = frame_gdf.bounds.values[0]
-    bounds_poly = box(
-        west - margin_deg,
-        south - margin_deg,
-        east + margin_deg,
-        north + margin_deg,
-    )
 
     # Filter grid points to expanded frame bounds
-    grid_gdf = grid_gdf.clip(bounds_poly)
-    grid_ids = grid_gdf.index.tolist()
+    grid_ids, _ = get_frame_grid_points(frame_gdf, grid_gdf, margin_deg)
 
     logger.info(f"Found {len(grid_ids)} grid points within frame bounds")
 
