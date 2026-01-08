@@ -10,15 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-file: environment.yml
           cache-environment: true
 
       - name: Install package
-        run: |
-          micromamba run -n my-cal-disp pip install --no-deps -e .
+        shell: micromamba-shell {0}
+        run: pip install -e ".[test]"
 
       - name: Run tests
-        run: |
-          micromamba run -n my-cal-disp pytest -v --maxfail=1 tests
+        shell: micromamba-shell {0}
+        run: pytest -v --maxfail=1 tests
