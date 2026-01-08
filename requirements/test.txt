@@ -1,0 +1,7 @@
+opera-utils
+asf_search
+rich
+zarr
+aiohttp
+fsspec
+s3fs
