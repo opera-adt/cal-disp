@@ -7,7 +7,6 @@ name = "cal-disp"
 description = "OPERA DISP calibration workflows"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
-
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
   "Intended Audience :: Science/Research",
@@ -15,7 +14,6 @@ classifiers = [
   "Operating System :: OS Independent",
 ]
 license = { file = "LICENSE.txt" }
-
 # The version will be written into a version.py upon install, auto-generated
 # see section: setuptools_scm
 # https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html#dynamic-metadata
@@ -30,34 +28,24 @@ Homepage = "https://github.com/opera-adt/cal-disp1"
 [project.scripts]
 cal-disp = "cal_disp.cli:cli_app"
 
-[project.optional-dependencies]
-test = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "xarray",
-    "h5netcdf",
-    "netcdf4",
-    "rasterio",  # optional, for mask file fixture
-    "pydantic>=2.0",
-    "ruamel.yaml",
-    "types-PyYAML",
-]
-
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
 
-# extra requirements: `pip install cal_disp[docs]` or `pip install .[docs]`
+# Optional dependencies loaded from files
 [tool.setuptools.dynamic.optional-dependencies.docs]
-file = ["docs/requirements.txt"]
+file = ["requirements/docs.txt"]
+
 [tool.setuptools.dynamic.optional-dependencies.test]
-file = ["tests/requirements.txt"]
+file = ["requirements/test.txt"]
+
+[tool.setuptools.dynamic.optional-dependencies.download]
+file = ["requirements/download.txt"]
 
 [tool.setuptools_scm]
 # https://github.com/pypa/setuptools_scm#configuration-parameters
 write_to = "src/cal_disp/_version.py"
 # https://github.com/pypa/setuptools_scm#version-number-construction
 version_scheme = "no-guess-dev" # Will not guess the next version
-
 
 [tool.ruff]
 src = ["src"]
@@ -79,7 +67,6 @@ select = [
   "PTH", # flake8-use-pathlib
   "PYI", # flake8-pyi
 ]
-
 ignore = [
   "D100",   # Missing docstring in public module
   "D104",   # Missing docstring in public package
@@ -102,7 +89,6 @@ ignore = [
 python_version = "3.11"
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
-
 
 [tool.pytest.ini_options]
 doctest_optionflags = "NORMALIZE_WHITESPACE NUMBER"

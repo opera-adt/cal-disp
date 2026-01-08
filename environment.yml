@@ -1,0 +1,42 @@
+name: my-cal-disp
+channels:
+  - conda-forge
+dependencies:
+  # Geospatial libraries
+  - gdal
+  - geopandas
+  - rasterio
+  - rioxarray
+  - shapely
+
+  # Visualization
+  - matplotlib-base
+  - cmap
+
+  # Data science core
+  - numpy
+  - pandas
+  - scipy
+  - xarray
+
+  # Data validation
+  - pydantic
+
+  # File formats
+  - h5py
+  - h5netcdf
+
+  # Utilities
+  - requests
+  - tqdm
+  - ruamel.yaml
+  - click
+
+  # Development tools
+  - pytest
+  - pre-commit
+
+  # PyPI packages
+  - pip
+  - pip:
+    - opera-utils

@@ -10,7 +10,8 @@ from cal_disp.product import CalProduct, DispProduct
 
 def run_calibration(
     disp_file: Path,
-    calibration_grid: Path,  # noqa: ARG001 - TODO: add GNSS
+    calibration_latlon: Path,  # noqa: ARG001 - TODO: add GNSS
+    calibration_reference_grid_dir: Path,  # noqa: ARG001 - TODO: add GNSS
     output_dir: Path,
     dem_file: Path | None = None,  # noqa: ARG001 - TODO: add DEM
     los_file: Path | None = None,  # noqa: ARG001 - TODO: add LOS
@@ -30,8 +31,10 @@ def run_calibration(
     ----------
     disp_file : Path
         Input displacement file.
-    calibration_grid : Path
-        GNSS calibration reference grid.
+    calibration_latlon : Path
+        GNSS calibration latlon lookup for reference grid.
+    calibration_reference_grid_dir : Path
+        GNSS calibration reference grid dir with tenv8 files.
     output_dir : Path
         Output directory for calibrated displacement file.
     dem_file : Path or None, optional

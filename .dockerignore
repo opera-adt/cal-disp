@@ -1,4 +1,46 @@
-**/__pycache__/*
-.mypy_cache
-build/
+# Version control
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+dist
+build
+.eggs
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+.tox
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Docs
+docs/_build
+*.rst~
+
+# Data files
 data/
+notebooks/
+*.nc
+*.tif
+*.h5
+*.hdf5
+
+# Temp files
+*.log
+.DS_Store
+
+# Keep what we need
+!docker/conda-lock.txt

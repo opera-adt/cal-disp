@@ -1,0 +1,24 @@
+services:
+  cal-disp:
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile
+      args:
+        BASE: ubuntu:22.04
+        MAMBA_USER_ID: ${UID:-1000}
+        MAMBA_USER_GID: ${GID:-1000}
+    image: opera-adt/cal-disp:latest
+    volumes:
+      - ./data:/home/work/data
+      - ./results:/home/work/results
+    user: "${UID:-1000}:${GID:-1000}"
+    command: cal-disp --help
+
+  # Development service with source mounted
+  cal-disp-dev:
+    extends: cal-disp
+    volumes:
+      - ./data:/home/work/data
+      - ./results:/home/work/results
+      - ./src:/tmp/cal-disp/src
+    command: bash

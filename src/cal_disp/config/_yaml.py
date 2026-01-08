@@ -285,65 +285,78 @@ class YamlModel(BaseModel):
 
 
 def _add_comments(
-    loaded_yaml: CommentedMap,
+    loaded_yaml: Any,
     schema: Dict[str, Any],
     indent: int = 0,
     definitions: Optional[dict] = None,
     indent_per_level: int = 2,
 ):
     """Add comments above each YAML field using the pydantic model schema."""
-    defs = schema.get("$defs") if definitions is None else definitions
+    if definitions is None:
+        definitions = schema.get("$defs", {})
 
-    for key, val in schema["properties"].items():
-        reference = ""
-        if "$ref" in val:
-            reference = val["$ref"]
-        elif "allOf" in val:
-            reference = val["allOf"][0]["$ref"]
+    properties = schema.get("properties", {})
 
-        ref_key = reference.split("/")[-1]
-        if ref_key:
-            if "enum" in defs[ref_key]:  # type: ignore[index]
-                val = defs[ref_key]  # type: ignore[index] # noqa: PLW2901
-            else:
-                sub_schema = defs[ref_key]  # type: ignore[index]
-                sub_loaded_yaml = loaded_yaml[key]
-                _add_comments(
-                    sub_loaded_yaml,
-                    sub_schema,
-                    indent=indent + indent_per_level,
-                    definitions=defs,
-                    indent_per_level=indent_per_level,
-                )
-                continue
+    for key, val in properties.items():
+        # 1. Resolve references and find the actual "value" schema
+        current_val = val
+        reference = None
 
+        # Unwrap anyOf/allOf (common in Optional fields)
+        if "anyOf" in current_val:
+            # Find the branch that isn't 'null' and has a reference
+            for branch in current_val["anyOf"]:
+                if "$ref" in branch:
+                    reference = branch["$ref"]
+                    break
+        elif "$ref" in current_val:
+            reference = current_val["$ref"]
+        elif "allOf" in current_val:
+            reference = current_val["allOf"][0].get("$ref")
+
+        # 2. Handle Recursion if it's a nested model
+        if reference:
+            ref_key = reference.split("/")[-1]
+            if ref_key in definitions:
+                sub_schema = definitions[ref_key]
+                # If the YAML has this key and it's a dict, dive in
+                if key in loaded_yaml and isinstance(loaded_yaml[key], dict):
+                    _add_comments(
+                        loaded_yaml[key],
+                        sub_schema,
+                        indent=indent + indent_per_level,
+                        definitions=definitions,
+                        indent_per_level=indent_per_level,
+                    )
+
+        # 3. Process description for the current key
         desc = val.get("description", "No description.")
-        desc = "\n".join(
+        # Wrap text to maintain clean formatting in YAML
+        wrapped_desc = "\n".join(
             textwrap.wrap(
                 f"{desc}.",
                 width=90,
-                subsequent_indent=" " * indent_per_level,
+                subsequent_indent=" " * (indent + indent_per_level),
             )
         )
+
+        # Determine type string for the comment
         if "anyOf" in val:
-            type_str = " | ".join(t.get("type", "None") for t in val["anyOf"]).replace(
-                "null", "None"
-            )
-        elif "const" in val:
-            type_str = val["const"]
+            type_str = " | ".join(
+                t.get("type", t.get("$ref", "").split("/")[-1]) for t in val["anyOf"]
+            ).replace("NoneType", "null")
         else:
-            type_str = val.get("type", "Any")
-        type_line = f"\n  Type: {type_str}."
-        choices = f"\n  Options: {val['enum']}." if "enum" in val else ""
+            type_str = val.get("type", "Object")
 
-        comment = f"{desc}{type_line}{choices}".replace("..", ".")
-
-        is_required = key in schema.get("required", [])
-        if is_required:
+        comment = f"{wrapped_desc}\n  Type: {type_str}."
+        if key in schema.get("required", []):
             comment = "REQUIRED: " + comment
 
-        loaded_yaml.yaml_set_comment_before_after_key(
-            key,
-            comment,
-            indent=indent,
-        )
+        # 4. Set the comment
+        if hasattr(loaded_yaml, "yaml_set_comment_before_after_key"):
+            try:
+                loaded_yaml.yaml_set_comment_before_after_key(
+                    key, comment, indent=indent
+                )
+            except (KeyError, TypeError):
+                pass

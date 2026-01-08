@@ -56,7 +56,8 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
     # Run calibration
     output_file = run_calibration(
         disp_file=runconfig.input_options.disp_file,
-        calibration_grid=runconfig.input_options.calibration_reference_grid,
+        calibration_latlon=runconfig.input_options.calibration_reference_latlon_file,
+        calibration_reference_grid_dir=runconfig.input_options.calibration_reference_grid_dir,
         output_dir=runconfig.output_directory,
         dem_file=runconfig.dynamic_ancillary_options.dem_file,
         los_file=runconfig.dynamic_ancillary_options.los_file,

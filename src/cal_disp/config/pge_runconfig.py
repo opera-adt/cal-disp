@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from os import PathLike
 from pathlib import Path
-from typing import ClassVar, List, Optional, TextIO, Union
+from typing import ClassVar, List, Optional
 
 from pydantic import ConfigDict, Field
 
-from ._utils import DirectoryPath, convert_paths_to_strings
+from ._utils import DirectoryPath
 from ._yaml import STRICT_CONFIG_WITH_ALIASES, ValidationResult, YamlModel
 from .workflow import (
     CalibrationWorkflow,
@@ -442,60 +441,5 @@ class RunConfig(YamlModel):
         y = YAML(typ="safe")
         with open(yaml_path) as f:
             return y.load(f)
-
-    def to_yaml(
-        self,
-        output_path: Union[str, PathLike, TextIO],
-        with_comments: bool = True,  # noqa: ARG002
-        by_alias: bool = True,
-        indent_per_level: int = 2,
-    ) -> None:
-        """Save configuration to YAML file with name wrapper.
-
-        Parameters
-        ----------
-        output_path : str | PathLike | TextIO
-            Path where YAML should be saved.
-        with_comments : bool, default=True
-            Whether to include field descriptions as comments.
-        by_alias : bool, default=True
-            Whether to use field aliases in output.
-        indent_per_level : int, default=2
-            Indentation spacing.
-
-        Notes
-        -----
-        This method always wraps output in {cal_disp_workflow: ...} structure.
-        The with_comments parameter is accepted for signature compatibility but
-        not currently used in the wrapper output.
-
-        """
-        from ruamel.yaml import YAML
-
-        # Handle file-like objects
-        if hasattr(output_path, "write"):
-            raise ValueError(
-                "RunConfig.to_yaml doesn't support file-like objects. "
-                "Save to a file path instead."
-            )
-
-        # Convert to Path
-        output_path_obj = Path(output_path)
-
-        # Get dict and convert paths
-        data = self.model_dump(mode="python", by_alias=by_alias)
-        data = convert_paths_to_strings(data)
-        wrapped = {self.name: data}
-
-        # Write with proper formatting
-        output_path_obj.parent.mkdir(parents=True, exist_ok=True)
-        y = YAML()
-        y.indent(
-            mapping=indent_per_level,
-            sequence=indent_per_level + 2,
-            offset=indent_per_level,
-        )
-        with open(output_path_obj, "w") as f:
-            y.dump(wrapped, f)
 
     model_config = STRICT_CONFIG_WITH_ALIASES
