@@ -50,6 +50,10 @@ version_scheme = "no-guess-dev" # Will not guess the next version
 [tool.ruff]
 src = ["src"]
 unsafe-fixes = true
+exclude = [
+    "*.ipynb",
+    "src/cal_disp/_version.py",  # Auto-generated
+]
 
 [tool.ruff.lint]
 select = [

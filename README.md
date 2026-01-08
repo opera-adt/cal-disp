@@ -40,7 +40,7 @@ Creates the science application software (SAS) using the [Venti]() library.
    python -m pip install -e cal-disp/
 ```
 
-**Docker:** See `docker/README.md`
+**Docker:** See [Docker_README](docker/README.md)
 
 ## Quick Start
 ```bash
@@ -89,7 +89,7 @@ Pre-commit runs these automatically. If checks fail, fix the issues and re-add f
 4. Run `pytest` and ensure pre-commit passes
 5. Open a PR
 
-See `CONTRIBUTING.md` for details.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## License
 
