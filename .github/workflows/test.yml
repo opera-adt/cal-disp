@@ -1,0 +1,24 @@
+name: Tests
+on: [pull_request, push]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: conda-env.yml
+          cache-environment: true
+
+      - name: Install package
+        run: |
+          micromamba run -n cal_disp pip install --no-deps -e .
+
+      - name: Run tests
+        run: |
+          micromamba run -n cal_disp pytest -v --maxfail=1

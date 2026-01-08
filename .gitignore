@@ -76,7 +76,7 @@ temp/
 *.tmp
 
 # CI/CD
-.github/
+#.github/
 .gitlab-ci.yml
 
 # Don't ignore these (we need them)
