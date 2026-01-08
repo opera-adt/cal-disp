@@ -17,8 +17,8 @@ jobs:
 
       - name: Install package
         run: |
-          micromamba run -n cal_disp pip install --no-deps -e .
+          micromamba run -n my-cal-disp pip install --no-deps -e .
 
       - name: Run tests
         run: |
-          micromamba run -n cal_disp pytest -v --maxfail=1
+          micromamba run -n my-cal-disp pytest -v --maxfail=1 tests
