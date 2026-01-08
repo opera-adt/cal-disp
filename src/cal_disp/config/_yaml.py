@@ -8,6 +8,7 @@ from os import PathLike
 from pathlib import Path
 from typing import (
     Any,
+    ClassVar,
     Dict,
     List,
     Optional,
@@ -76,6 +77,7 @@ def _get_placeholder_value(annotation):
 class YamlModel(BaseModel):
     """Pydantic model that can be exported to yaml."""
 
+    _yaml_root_key: ClassVar[Optional[str]] = None
     model_config = STRICT_CONFIG
 
     def to_yaml(
@@ -85,13 +87,41 @@ class YamlModel(BaseModel):
         by_alias: bool = True,
         indent_per_level: int = 2,
     ):
-        """Save configuration as a yaml file."""
+        """Save configuration as a yaml file with support for wrapped comments."""
         yaml_obj = self._to_yaml_obj(by_alias=by_alias)
 
+        # Get the root key safely from the ClassVar
+        root_key = getattr(self, "_yaml_root_key", None)
+
         if with_comments:
+            schema = self.model_json_schema(by_alias=by_alias)
+
+            # COMMENT LOGIC:
+            # If wrapped, we point the comment logic at the values inside the key
+            # and increase the base indent.
+            target_yaml = yaml_obj
+            comment_indent = 0
+
+            if root_key and root_key in yaml_obj:
+                target_yaml = yaml_obj[root_key]
+                comment_indent = indent_per_level
+
+                # Add a high-level comment to the top-level key itself
+                desc = (
+                    self.__doc__.split("\n")[0].strip()
+                    if self.__doc__
+                    else "Workflow configuration."
+                )
+                yaml_obj.yaml_set_comment_before_after_key(
+                    root_key, f"REQUIRED: {desc}", indent=0
+                )
+
+            # Recursive call to add comments for all fields
             _add_comments(
-                yaml_obj,
-                self.model_json_schema(by_alias=by_alias),
+                target_yaml,
+                schema,
+                indent=comment_indent,
+                definitions=schema.get("$defs"),
                 indent_per_level=indent_per_level,
             )
 
@@ -109,10 +139,16 @@ class YamlModel(BaseModel):
 
     @classmethod
     def from_yaml(cls, yaml_path: Filename):
-        """Load a configuration from a yaml file."""
+        """Load YAML, unwrapping the top-level key if it matches cls.name."""
         y = YAML(typ="safe")
         with open(yaml_path) as f:
             data = y.load(f)
+
+        # Check the unique attribute name
+        root_key = getattr(cls, "_yaml_root_key", None)
+        if root_key and isinstance(data, dict) and root_key in data:
+            data = data[root_key]
+
         return cls(**data)
 
     @classmethod
@@ -140,16 +176,23 @@ class YamlModel(BaseModel):
         )
 
     def _to_yaml_obj(self, by_alias: bool = True) -> CommentedMap:
-        """Convert model to YAML object."""
+        """Convert model to YAML, wrapping in 'name' if defined."""
         y = YAML()
         ss = StringIO()
-        # Explicitly include all fields, even if unset or None
+
+        # Get the flat dictionary
         json_data = self.model_dump_json(
             by_alias=by_alias,
-            exclude_unset=False,  # Include all fields
-            exclude_none=False,  # Include None values
+            exclude_unset=False,
+            exclude_none=False,
         )
-        y.dump(json.loads(json_data), ss)
+        data = json.loads(json_data)
+
+        root_key = getattr(self, "_yaml_root_key", None)
+        if root_key:
+            data = {root_key: data}
+
+        y.dump(data, ss)
         return y.load(ss.getvalue())
 
     def get_all_file_paths(

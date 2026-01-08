@@ -128,7 +128,7 @@ class RunConfig(YamlModel):
     """
 
     # Used for the top-level key in YAML
-    name: ClassVar[str] = "cal_disp_workflow"
+    _yaml_root_key: ClassVar[str] = "cal_disp_workflow"
 
     # Input configuration
     input_file_group: InputFileGroup = Field(
@@ -415,9 +415,12 @@ class RunConfig(YamlModel):
         """
         data = cls._load_yaml_data(yaml_path)
 
-        # Handle optional wrapper key
-        if cls.name in data:
-            data = data[cls.name]
+        # Get the root key safely (e.g., "cal_disp_workflow")
+        root_key = getattr(cls, "_yaml_root_key", None)
+
+        # Handle optional wrapper key if it exists in the data
+        if root_key and isinstance(data, dict) and root_key in data:
+            data = data[root_key]
 
         return cls.model_validate(data)
 
