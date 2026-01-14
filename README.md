@@ -43,7 +43,12 @@ Creates the science application software (SAS) using the [Venti]() library.
 **Docker:** See [Docker_README](docker/README.md)
 
 ## Quick Start
+- Copy [algorithm_parameters.yaml](https://github.com/opera-adt/cal-disp/blob/main/configs/algorithm_parameters.yaml) to config folder
+- Download line_of_sight_enu.tif and dem.tif with [Venti](https://github.com/opera-adt/Venti/tree/main/scripts/staging/):
 ```bash
+python dem_cli.py --frame-id 8882
+python los_cli.py --frame-id 8882
+
 # Download data
 cal-disp download disp-s1 --frame-id 8882 -s 2022-07-01 -e 2022-08-01 -o ./data
 cal-disp download tropo -i ./data/OPERA_L3_DISP-S1_*.nc -o ./data/tropo
@@ -54,11 +59,13 @@ cal-disp config \
     -d ./data/OPERA_L3_DISP-S1_*.nc \
     -cl ./data/unr/grid_latlon_lookup_v0.2.txt \
     -cd ./data/unr \
-    --los-file ./data/static/line_of_sight_enu.tif \
-    --dem-file ./data/static/dem.tif \
-    -c runconfig.yaml
+    --los-file line_of_sight_enu.tif \
+    --dem-file dem.tif \
+    --frame-id 8882 \
+    --algorithm-params config/algorithm_parameters.yaml \
+    --output-dir outputs --work-dir scratch/
 
-cal-disp run runconfig.yaml
+cal-disp run scratch/runconfig.yaml
 ```
 
 ## Development
