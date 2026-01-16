@@ -25,13 +25,15 @@ class TestInputFileGroup:
         """Should create with all required fields."""
         config = InputFileGroup(
             disp_file=sample_disp_product,
-            calibration_reference_latlon_file=sample_unr_grid_latlon,
-            calibration_reference_grid_dir=sample_unr_timeseries_dir,
+            unr_grid_latlon_file=sample_unr_grid_latlon,
+            unr_timeseries_dir=sample_unr_timeseries_dir,
             frame_id=8882,
+            unr_grid_version="0.2",
+            unr_grid_type="constant",
         )
 
         assert config.disp_file == sample_disp_product
-        assert config.calibration_reference_latlon_file == sample_unr_grid_latlon
+        assert config.unr_grid_latlon_file == sample_unr_grid_latlon
         assert config.frame_id == 8882
 
     def test_validates_disp_extension(self, tmp_path: Path):
@@ -42,10 +44,11 @@ class TestInputFileGroup:
         with pytest.raises(ValueError, match="must be .nc or .h5"):
             InputFileGroup(
                 disp_file=bad_file,
-                calibration_reference_latlon_file=tmp_path
-                / "grid_latlon_lookup_v0.2.txt",
-                calibration_reference_grid_dir=tmp_path,
+                unr_grid_latlon_file=tmp_path / "grid_latlon_lookup_v0.2.txt",
+                unr_timeseries_dir=tmp_path,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
 
     def test_accepts_nc_extension(self, sample_unr_grid_latlon: Path, tmp_path: Path):
@@ -56,9 +59,11 @@ class TestInputFileGroup:
 
         config = InputFileGroup(
             disp_file=nc_file,
-            calibration_reference_latlon_file=sample_unr_grid_latlon,
-            calibration_reference_grid_dir=tmp_path,
+            unr_grid_latlon_file=sample_unr_grid_latlon,
+            unr_timeseries_dir=tmp_path,
             frame_id=8882,
+            unr_grid_version="0.2",
+            unr_grid_type="constant",
         )
 
         assert config.disp_file == nc_file
@@ -71,9 +76,11 @@ class TestInputFileGroup:
 
         config = InputFileGroup(
             disp_file=h5_file,
-            calibration_reference_latlon_file=sample_unr_grid_latlon,
-            calibration_reference_grid_dir=tmp_path,
+            unr_grid_latlon_file=sample_unr_grid_latlon,
+            unr_timeseries_dir=tmp_path,
             frame_id=8882,
+            unr_grid_version="0.2",
+            unr_grid_type="constant",
         )
 
         assert config.disp_file == h5_file
@@ -91,9 +98,11 @@ class TestInputFileGroup:
         with pytest.raises(ValueError, match="Expected grid_latlon_lookup"):
             InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=bad_file,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=bad_file,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
 
     def test_validates_latlon_extension(
@@ -109,9 +118,11 @@ class TestInputFileGroup:
         with pytest.raises(ValueError, match="must be .txt"):
             InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=bad_file,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=bad_file,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
 
     def test_validates_grid_dir_exists(
@@ -126,9 +137,11 @@ class TestInputFileGroup:
         with pytest.raises(ValueError, match="does not exist"):
             InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=nonexistent,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=nonexistent,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
 
     def test_validates_grid_dir_has_tenv8_files(
@@ -144,9 +157,11 @@ class TestInputFileGroup:
         with pytest.raises(ValueError, match="No .tenv8 files found"):
             InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=empty_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=empty_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
 
     def test_validates_frame_id_range(
@@ -159,17 +174,21 @@ class TestInputFileGroup:
         with pytest.raises(ValueError, match="between 1 and 99999"):
             InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=0,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
 
         with pytest.raises(ValueError, match="between 1 and 99999"):
             InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=100000,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
 
     def test_accepts_valid_frame_ids(
@@ -182,9 +201,11 @@ class TestInputFileGroup:
         for frame_id in [1, 100, 8882, 99999]:
             config = InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=frame_id,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
             assert config.frame_id == frame_id
 
@@ -198,9 +219,11 @@ class TestInputFileGroup:
         with pytest.raises(ValueError):
             InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
                 extra_field="not allowed",
             )
 
@@ -218,8 +241,8 @@ class TestDynamicAncillaryFileGroup:
 
         config = DynamicAncillaryFileGroup(
             algorithm_parameters_file=sample_algorithm_params,
-            los_file=los_file,
-            dem_file=dem_file,
+            static_los_file=los_file,
+            static_dem_file=dem_file,
         )
 
         assert config.algorithm_parameters_file == sample_algorithm_params
@@ -237,7 +260,7 @@ class TestDynamicAncillaryFileGroup:
         config = DynamicAncillaryFileGroup(
             algorithm_parameters_file=sample_algorithm_params,
             static_los_file=los_file,  # Using alias
-            dem_file=dem_file,
+            static_dem_file=dem_file,
         )
 
         assert config.los_file == los_file
@@ -252,7 +275,7 @@ class TestDynamicAncillaryFileGroup:
 
         config = DynamicAncillaryFileGroup(
             algorithm_parameters_file=sample_algorithm_params,
-            los_file=los_file,
+            static_los_file=los_file,
             static_dem_file=dem_file,  # Using alias
         )
 
@@ -269,8 +292,8 @@ class TestDynamicAncillaryFileGroup:
 
         config = DynamicAncillaryFileGroup(
             algorithm_parameters_file=sample_algorithm_params,
-            los_file=los_file,
-            dem_file=dem_file,
+            static_los_file=los_file,
+            static_dem_file=dem_file,
             mask_file=sample_mask_file,
         )
 
@@ -295,8 +318,8 @@ class TestDynamicAncillaryFileGroup:
 
         config = DynamicAncillaryFileGroup(
             algorithm_parameters_file=sample_algorithm_params,
-            los_file=los_file,
-            dem_file=dem_file,
+            static_los_file=los_file,
+            static_dem_file=dem_file,
             reference_tropo_files=[ref_tropo1, ref_tropo2],
             secondary_tropo_files=[sec_tropo],
         )
@@ -318,8 +341,8 @@ class TestDynamicAncillaryFileGroup:
 
         config = DynamicAncillaryFileGroup(
             algorithm_parameters_file=sample_algorithm_params,
-            los_file=los_file,
-            dem_file=dem_file,
+            static_los_file=los_file,
+            static_dem_file=dem_file,
             ref_tropo_files=[tropo_file],  # Using alias
             sec_tropo_files=[tropo_file],  # Using alias
         )
@@ -341,8 +364,8 @@ class TestDynamicAncillaryFileGroup:
 
         config = DynamicAncillaryFileGroup(
             algorithm_parameters_file=sample_algorithm_params,
-            los_file=los_file,
-            dem_file=dem_file,
+            static_los_file=los_file,
+            static_dem_file=dem_file,
             iono_files=[iono_file],
         )
 
@@ -362,8 +385,8 @@ class TestDynamicAncillaryFileGroup:
 
         config = DynamicAncillaryFileGroup(
             algorithm_parameters_file=sample_algorithm_params,
-            los_file=los_file,
-            dem_file=dem_file,
+            static_los_file=los_file,
+            static_dem_file=dem_file,
             tiles_files=[tile_file],
         )
 
@@ -383,8 +406,8 @@ class TestDynamicAncillaryFileGroup:
 
         config = DynamicAncillaryFileGroup(
             algorithm_parameters_file=sample_algorithm_params,
-            los_file=los_file,
-            dem_file=dem_file,
+            static_los_file=los_file,
+            static_dem_file=dem_file,
             reference_tropo_files=[tropo_file],
         )
 
@@ -405,8 +428,8 @@ class TestDynamicAncillaryFileGroup:
 
         config = DynamicAncillaryFileGroup(
             algorithm_parameters_file=sample_algorithm_params,
-            los_file=los_file,
-            dem_file=dem_file,
+            static_los_file=los_file,
+            static_dem_file=dem_file,
             # All optional fields are None
         )
 

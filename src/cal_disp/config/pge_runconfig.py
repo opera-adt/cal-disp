@@ -244,11 +244,11 @@ class RunConfig(YamlModel):
         if self.input_file_group.disp_file is None:
             errors.append("disp_file must be provided")
 
-        if self.input_file_group.calibration_reference_latlon_file is None:
-            errors.append("calibration_reference_latlon_file must be provided")
+        if self.input_file_group.unr_grid_latlon_file is None:
+            errors.append("unr_grid_latlon_file must be provided")
 
-        if self.input_file_group.calibration_reference_grid_dir is None:
-            errors.append("calibration_reference_grid_dir must be provided")
+        if self.input_file_group.unr_timeseries_dir is None:
+            errors.append("unr_timeseries_dir must be provided")
 
         # Check for missing files only if required options are set
         if self.input_file_group is not None:
@@ -302,14 +302,10 @@ class RunConfig(YamlModel):
             "Input Files:",
             f"  DISP file:        {self.input_file_group.disp_file}",
             f"  Frame ID:         {self.input_file_group.frame_id}",
-            (
-                "  UNR lookup:       "
-                f"{self.input_file_group.calibration_reference_latlon_file}"
-            ),
-            (
-                "  UNR grid dir:     "
-                f"{self.input_file_group.calibration_reference_grid_dir}"
-            ),
+            f"  UNR lookup:       {self.input_file_group.unr_grid_latlon_file}",
+            f"  UNR grid dir:     {self.input_file_group.unr_timeseries_dir}",
+            f"  UNR version:         {self.input_file_group.unr_grid_version}",
+            f"  UNR type:         {self.input_file_group.unr_grid_type}",
             "",
             "Worker Settings:",
             f"  Workers:          {self.worker_settings.n_workers}",
@@ -378,11 +374,11 @@ class RunConfig(YamlModel):
         return cls.model_construct(
             input_file_group=InputFileGroup(
                 disp_file=Path("input/disp_frame_8882.h5"),
-                calibration_reference_latlon_file=Path(
-                    "input/unr/grid_latlon_lookup_v0.2.txt"
-                ),
-                calibration_reference_grid_dir=Path("input/unr/"),
+                unr_grid_latlon_file=Path("input/unr/grid_latlon_lookup_v0.2.txt"),
+                unr_timeseries_dir=Path("input/unr/"),
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
                 skip_file_checks=True,
             ),
             dynamic_ancillary_group=DynamicAncillaryFileGroup(
@@ -391,7 +387,7 @@ class RunConfig(YamlModel):
                 static_los_file=Path("input/los.tif"),
             ),
             product_path_group=ProductPathGroup(
-                scratch_path=Path("./scratch"), output_path=Path("./output")
+                scratch_path=Path("./scratch"), product_path=Path("./output")
             ),
             worker_settings=WorkerSettings.create_standard(),
         )

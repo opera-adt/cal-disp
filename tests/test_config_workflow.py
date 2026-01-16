@@ -92,9 +92,11 @@ class TestCalibrationWorkflowWithInputs:
 
         input_opts = InputFileGroup(
             disp_file=sample_disp_product,
-            calibration_reference_latlon_file=sample_unr_grid_latlon,
-            calibration_reference_grid_dir=sample_unr_timeseries_dir,
+            unr_grid_latlon_file=sample_unr_grid_latlon,
+            unr_timeseries_dir=sample_unr_timeseries_dir,
             frame_id=8882,
+            unr_grid_version="0.2",
+            unr_grid_type="constant",
         )
 
         workflow = CalibrationWorkflow(input_options=input_opts)
@@ -114,8 +116,8 @@ class TestCalibrationWorkflowWithInputs:
 
         dynamic_opts = DynamicAncillaryFileGroup(
             algorithm_parameters_file=sample_algorithm_params,
-            los_file=los_file,
-            dem_file=dem_file,
+            static_los_file=los_file,
+            static_dem_file=dem_file,
         )
 
         workflow = CalibrationWorkflow(dynamic_ancillary_options=dynamic_opts)
@@ -163,9 +165,11 @@ class TestCalibrationWorkflowValidation:
         workflow = CalibrationWorkflow(
             input_options=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
         )
 
@@ -190,14 +194,16 @@ class TestCalibrationWorkflowValidation:
         workflow = CalibrationWorkflow(
             input_options=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             ),
             dynamic_ancillary_options=DynamicAncillaryFileGroup(
                 algorithm_parameters_file=sample_algorithm_params,
-                los_file=los_file,
-                dem_file=dem_file,
+                static_los_file=los_file,
+                static_dem_file=dem_file,
             ),
         )
 
@@ -222,14 +228,16 @@ class TestCalibrationWorkflowValidation:
         workflow = CalibrationWorkflow(
             input_options=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             ),
             dynamic_ancillary_options=DynamicAncillaryFileGroup(
                 algorithm_parameters_file=sample_algorithm_params,
-                los_file=los_file,
-                dem_file=dem_file,
+                static_los_file=los_file,
+                static_dem_file=dem_file,
             ),
         )
 
@@ -254,14 +262,16 @@ class TestCalibrationWorkflowValidation:
         workflow = CalibrationWorkflow(
             input_options=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             ),
             dynamic_ancillary_options=DynamicAncillaryFileGroup(
                 algorithm_parameters_file=sample_algorithm_params,
-                los_file=los_file,
-                dem_file=dem_file,
+                static_los_file=los_file,
+                static_dem_file=dem_file,
             ),
         )
 
@@ -281,10 +291,11 @@ class TestCalibrationWorkflowValidation:
         workflow = CalibrationWorkflow(
             input_options=InputFileGroup(
                 disp_file=nonexistent,
-                calibration_reference_latlon_file=tmp_path
-                / "grid_latlon_lookup_v0.2.txt",
-                calibration_reference_grid_dir=tmp_path,
+                unr_grid_latlon_file=tmp_path / "grid_latlon_lookup_v0.2.txt",
+                unr_timeseries_dir=tmp_path,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
         )
 
@@ -408,14 +419,16 @@ class TestCalibrationWorkflowSummary:
         workflow = CalibrationWorkflow(
             input_options=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             ),
             dynamic_ancillary_options=DynamicAncillaryFileGroup(
                 algorithm_parameters_file=sample_algorithm_params,
-                los_file=los_file,
-                dem_file=dem_file,
+                static_los_file=los_file,
+                static_dem_file=dem_file,
             ),
         )
 

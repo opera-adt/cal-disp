@@ -21,7 +21,7 @@ class CalProduct:
 
     Represents a calibration correction product that should be subtracted
     from OPERA DISP products. Main group contains calibration at full
-    resolution. Optional model_3d group contains 3D displacement
+    resolution. Optional auxiliary group contains 3D displacement
     components at coarser resolution.
 
     Groups
@@ -30,7 +30,7 @@ class CalProduct:
         - calibration: Correction to subtract from DISP (full resolution)
         - calibration_std: Calibration uncertainty (full resolution)
 
-    model_3d group (optional):
+    Auxiliary group (optional):
         - north_south: North-south displacement component (coarse resolution)
         - east_west: East-west displacement component (coarse resolution)
         - up_down: Up-down displacement component (coarse resolution)
@@ -66,22 +66,22 @@ class CalProduct:
     ...     calibration=cal_correction,
     ...     disp_product=disp,
     ...     output_dir="output/",
-    ...     model_3d={"north_south": vel_ns, "east_west": vel_ew, "up_down": vel_ud},
+    ...     auxiliary={"north_south": vel_ns, "east_west": vel_ew, "up_down": vel_ud},
     ... )
 
     >>> # Access main calibration
     >>> ds_main = cal.open_dataset()
     >>> calibration = ds_main["calibration"]
 
-    >>> # Access 3D model (coarse resolution)
-    >>> ds_model = cal.open_model_3d()
+    >>> # Access auxiliary 3D model (coarse resolution)
+    >>> ds_model = cal.open_auxiliary()
     >>> model_up = ds_model["up_down"]
 
     """
 
     path: Path
     frame_id: int
-    primary_date: datetime
+    reference_date: datetime
     secondary_date: datetime
     polarization: str
     sensor: str
@@ -95,7 +95,7 @@ class CalProduct:
         r"(?P<mode>\w+)_"
         r"F(?P<frame_id>\d+)_"
         r"(?P<pol>\w+)_"
-        r"(?P<primary>\d{8}T\d{6}Z)_"
+        r"(?P<reference>\d{8}T\d{6}Z)_"
         r"(?P<secondary>\d{8}T\d{6}Z)_"
         r"v(?P<version>[\d.]+)_"
         r"(?P<production>\d{8}T\d{6}Z)"
@@ -125,10 +125,10 @@ class CalProduct:
         if self.frame_id <= 0:
             raise ValueError(f"frame_id must be positive, got {self.frame_id}")
 
-        if self.secondary_date <= self.primary_date:
+        if self.secondary_date <= self.reference_date:
             raise ValueError(
                 f"Secondary date ({self.secondary_date}) must be after "
-                f"primary date ({self.primary_date})"
+                f"Reference date ({self.reference_date})"
             )
 
         if self.polarization not in {"VV", "VH", "HH", "HV"}:
@@ -177,7 +177,9 @@ class CalProduct:
         return cls(
             path=path,
             frame_id=int(match.group("frame_id")),
-            primary_date=datetime.strptime(match.group("primary"), "%Y%m%dT%H%M%SZ"),
+            reference_date=datetime.strptime(
+                match.group("reference"), "%Y%m%dT%H%M%SZ"
+            ),
             secondary_date=datetime.strptime(
                 match.group("secondary"), "%Y%m%dT%H%M%SZ"
             ),
@@ -269,7 +271,7 @@ class CalProduct:
             f"{disp_product.mode}_"
             f"F{disp_product.frame_id:05d}_"
             f"{disp_product.polarization}_"
-            f"{disp_product.primary_date:%Y%m%dT%H%M%S}Z_"
+            f"{disp_product.reference_date:%Y%m%dT%H%M%S}Z_"
             f"{disp_product.secondary_date:%Y%m%dT%H%M%S}Z_"
             f"v{version}_"
             f"{production_date:%Y%m%dT%H%M%S}Z.nc"
@@ -303,13 +305,12 @@ class CalProduct:
                 "frame_id": disp_product.frame_id,
                 "mode": disp_product.mode,
                 "polarization": disp_product.polarization,
-                "primary_datetime": disp_product.primary_date.isoformat(),
+                "reference_datetime": disp_product.reference_date.isoformat(),
                 "secondary_datetime": disp_product.secondary_date.isoformat(),
                 "production_datetime": production_date.isoformat(),
                 "product_version": version,
                 "description": (
-                    f"Calibration correction for {sensor} InSAR displacement (subtract"
-                    " from DISP)"
+                    f"Calibration for {sensor} InSAR displacement (subtract from DISP)"
                 ),
                 "source_product": disp_product.filename,
                 "usage": (
@@ -326,7 +327,7 @@ class CalProduct:
         # Save main group
         ds.to_netcdf(output_file, engine="h5netcdf")
 
-        # Create model_3d group if 3D components provided (coarse resolution)
+        # Create auxiliary group if 3D components provided (coarse resolution)
         if model_3d or model_3d_std:
             model_data_vars = {}
 
@@ -371,14 +372,14 @@ class CalProduct:
                 ds_model.to_netcdf(
                     output_file,
                     mode="a",
-                    group="model_3d",
+                    group="auxiliary",
                     engine="h5netcdf",
                 )
 
         return cls(
             path=output_file,
             frame_id=disp_product.frame_id,
-            primary_date=disp_product.primary_date,
+            reference_date=disp_product.reference_date,
             secondary_date=disp_product.secondary_date,
             polarization=disp_product.polarization,
             sensor=sensor,
@@ -393,7 +394,7 @@ class CalProduct:
         Parameters
         ----------
         group : str or None, optional
-            Group to open: None for main, "model_3d" for 3D model.
+            Group to open: None for main, "auxiliary" for 3D model.
             Default is None (main group).
 
         Returns
@@ -412,21 +413,21 @@ class CalProduct:
         >>> ds_main = cal.open_dataset()
         >>> calibration = ds_main["calibration"]
 
-        >>> # Open model_3d group (coarse resolution)
-        >>> ds_model = cal.open_dataset(group="model_3d")
+        >>> # Open auxiliary group (coarse resolution)
+        >>> ds_model = cal.open_dataset(group="auxiliary")
         >>> model_up = ds_model["up_down"]
 
         """
         if not self.path.exists():
             raise FileNotFoundError(f"Product file not found: {self.path}")
 
-        if group == "model_3d":
-            return xr.open_dataset(self.path, group="model_3d", engine="h5netcdf")
+        if group == "auxiliary":
+            return xr.open_dataset(self.path, group="auxiliary", engine="h5netcdf")
 
         return xr.open_dataset(self.path, engine="h5netcdf")
 
-    def open_model_3d(self) -> xr.Dataset:
-        """Open model_3d group dataset.
+    def open_auxiliary(self) -> xr.Dataset:
+        """Open auxiliary group dataset.
 
         Returns
         -------
@@ -438,11 +439,11 @@ class CalProduct:
         FileNotFoundError
             If product file does not exist.
         ValueError
-            If model_3d group does not exist.
+            If auxiliary group does not exist.
 
         Examples
         --------
-        >>> ds_model = cal.open_model_3d()
+        >>> ds_model = cal.open_auxiliary()
         >>> disp_ns = ds_model["north_south"]
         >>> disp_ew = ds_model["east_west"]
         >>> disp_up = ds_model["up_down"]
@@ -452,24 +453,24 @@ class CalProduct:
             raise FileNotFoundError(f"Product file not found: {self.path}")
 
         try:
-            return xr.open_dataset(self.path, group="model_3d", engine="h5netcdf")
+            return xr.open_dataset(self.path, group="auxiliary", engine="h5netcdf")
         except (OSError, ValueError) as e:
             raise ValueError(
-                f"model_3d group not found in {self.filename}. "
+                f"auxiliary group not found in {self.filename}. "
                 "Product may not contain 3D displacement model."
             ) from e
 
-    def has_model_3d(self) -> bool:
-        """Check if product contains model_3d group.
+    def has_auxiliary(self) -> bool:
+        """Check if product contains auxiliary group.
 
         Returns
         -------
         bool
-            True if model_3d group exists.
+            True if auxiliary group exists.
 
         """
         try:
-            self.open_model_3d()
+            self.open_auxiliary()
             return True
         except (FileNotFoundError, ValueError):
             return False
@@ -601,7 +602,7 @@ class CalProduct:
         >>> cal.to_geotiff("calibration", "calibration.tif")
 
         >>> # Export 3D model component
-        >>> cal.to_geotiff("up_down", "model_up.tif", group="model_3d")
+        >>> cal.to_geotiff("up_down", "model_up.tif", group="auxiliary")
 
         """
         output_path = Path(output_path)
@@ -661,7 +662,7 @@ class CalProduct:
                 sensor=self.sensor,
                 frame_id=self.frame_id,
                 polarization=self.polarization,
-                primary_date=self.primary_date.isoformat(),
+                reference_date=self.reference_date.isoformat(),
                 secondary_date=self.secondary_date.isoformat(),
                 layer=layer,
                 group=group if group else "main",
@@ -675,14 +676,14 @@ class CalProduct:
         Returns
         -------
         dict[str, dict[str, float]]
-            Statistics for main and model_3d groups.
+            Statistics for main and auxiliary groups.
 
         Examples
         --------
         >>> summary = cal.get_calibration_summary()
         >>> summary["main"]["calibration"]
         {'mean': 0.023, 'std': 0.015, 'min': -0.05, 'max': 0.08}
-        >>> summary["model_3d"]["up_down"]
+        >>> summary["auxiliary"]["up_down"]
         {'mean': 0.001, 'std': 0.003, 'min': -0.01, 'max': 0.02}
 
         """
@@ -705,10 +706,10 @@ class CalProduct:
                     "max": float(np.max(valid_data)),
                 }
 
-        # model_3d group if exists
-        if self.has_model_3d():
-            summary["model_3d"] = {}
-            ds_model = self.open_model_3d()
+        # auxiliary group if exists
+        if self.has_auxiliary():
+            summary["auxiliary"] = {}
+            ds_model = self.open_auxiliary()
 
             for var in ds_model.data_vars:
                 if var == "spatial_ref":
@@ -718,7 +719,7 @@ class CalProduct:
                 valid_data = data[~np.isnan(data)]
 
                 if len(valid_data) > 0:
-                    summary["model_3d"][var] = {
+                    summary["auxiliary"][var] = {
                         "mean": float(np.mean(valid_data)),
                         "std": float(np.std(valid_data)),
                         "min": float(np.min(valid_data)),
@@ -780,7 +781,7 @@ class CalProduct:
     @property
     def baseline_days(self) -> int:
         """Temporal baseline in days."""
-        return (self.secondary_date - self.primary_date).days
+        return (self.secondary_date - self.reference_date).days
 
     @property
     def filename(self) -> str:
@@ -794,9 +795,9 @@ class CalProduct:
 
     def __repr__(self) -> str:
         """Return a string representation."""
-        model_str = "+model_3d" if self.exists and self.has_model_3d() else ""
+        model_str = "+auxiliary" if self.exists and self.has_auxiliary() else ""
         return (
             f"CalProduct(sensor={self.sensor}, frame={self.frame_id}, "
-            f"{self.primary_date.date()} → {self.secondary_date.date()}, "
+            f"{self.reference_date.date()} → {self.secondary_date.date()}, "
             f"{self.polarization}{model_str})"
         )

@@ -121,9 +121,11 @@ class TestRunConfig:
         config = RunConfig(
             input_file_group=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
         )
         assert config.input_file_group is not None
@@ -140,9 +142,11 @@ class TestRunConfig:
         config = RunConfig(
             input_file_group=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
         )
 
@@ -174,14 +178,16 @@ class TestRunConfig:
         config = RunConfig(
             input_file_group=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             ),
             dynamic_ancillary_group=DynamicAncillaryFileGroup(
                 algorithm_parameters_file=sample_algorithm_params,
-                los_file=los_file,
-                dem_file=dem_file,
+                static_los_file=los_file,
+                static_dem_file=dem_file,
             ),
             static_ancillary_group=StaticAncillaryFileGroup(
                 algorithm_parameters_overrides_json=override_file
@@ -208,9 +214,11 @@ class TestRunConfig:
         config = RunConfig(
             input_file_group=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             ),
             product_path_group=ProductPathGroup(
                 product_path=product_dir,
@@ -244,9 +252,11 @@ class TestRunConfig:
         config = RunConfig(
             input_file_group=InputFileGroup(
                 disp_file=Path("fake.nc"),
-                calibration_reference_latlon_file=Path("grid_latlon_lookup_v0.2.txt"),
-                calibration_reference_grid_dir=fake_grid_dir,
+                unr_grid_latlon_file=Path("grid_latlon_lookup_v0.2.txt"),
+                unr_timeseries_dir=fake_grid_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
         )
 
@@ -271,14 +281,16 @@ class TestRunConfig:
         config = RunConfig(
             input_file_group=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             ),
             dynamic_ancillary_group=DynamicAncillaryFileGroup(
                 algorithm_parameters_file=sample_algorithm_params,
-                los_file=los_file,
-                dem_file=dem_file,
+                static_los_file=los_file,
+                static_dem_file=dem_file,
             ),
         )
 
@@ -299,9 +311,11 @@ class TestRunConfig:
         config = RunConfig(
             input_file_group=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
         )
 
@@ -327,14 +341,16 @@ class TestRunConfig:
         config = RunConfig(
             input_file_group=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             ),
             dynamic_ancillary_group=DynamicAncillaryFileGroup(
                 algorithm_parameters_file=sample_algorithm_params,
-                los_file=los_file,
-                dem_file=dem_file,
+                static_los_file=los_file,
+                static_dem_file=dem_file,
             ),
         )
 
@@ -361,9 +377,11 @@ class TestRunConfig:
         config = RunConfig(
             input_file_group=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             )
         )
 
@@ -400,9 +418,11 @@ class TestRunConfig:
         config = RunConfig(
             input_file_group=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             ),
             product_path_group=ProductPathGroup(output_path=tmp_path / "output"),
         )
@@ -427,9 +447,11 @@ class TestRunConfig:
         config = RunConfig(
             input_file_group=InputFileGroup(
                 disp_file=sample_disp_product,
-                calibration_reference_latlon_file=sample_unr_grid_latlon,
-                calibration_reference_grid_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
             ),
             log_file=custom_log,
         )

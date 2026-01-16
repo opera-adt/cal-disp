@@ -36,6 +36,18 @@ def sample_frame_id() -> int:
     return 8882
 
 
+@pytest.fixture
+def sample_grid_version() -> str:
+    """Sample UNR gridded data version."""
+    return "0.2"
+
+
+@pytest.fixture
+def sample_grid_type() -> str:
+    """Sample UNR gridded data type."""
+    return "constant"
+
+
 # DISP product fixtures
 
 

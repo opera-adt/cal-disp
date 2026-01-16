@@ -27,7 +27,7 @@ class DispProduct:
         Path to the NetCDF product file.
     frame_id : int
         OPERA frame identifier (e.g., 8882).
-    primary_date : datetime
+    reference_date : datetime
         Earlier acquisition date (reference).
     secondary_date : datetime
         Later acquisition date.
@@ -57,7 +57,7 @@ class DispProduct:
 
     path: Path
     frame_id: int
-    primary_date: datetime
+    reference_date: datetime
     secondary_date: datetime
     sensor: str
     polarization: str
@@ -72,7 +72,7 @@ class DispProduct:
         r"(?P<mode>\w+)_"
         r"F(?P<frame_id>\d+)_"
         r"(?P<pol>\w+)_"
-        r"(?P<primary>\d{8}T\d{6}Z)_"
+        r"(?P<reference>\d{8}T\d{6}Z)_"
         r"(?P<secondary>\d{8}T\d{6}Z)_"
         r"v(?P<version>[\d.]+)_"
         r"(?P<production>\d{8}T\d{6}Z)"
@@ -108,10 +108,10 @@ class DispProduct:
         if self.frame_id <= 0:
             raise ValueError(f"frame_id must be positive, got {self.frame_id}")
 
-        if self.secondary_date <= self.primary_date:
+        if self.secondary_date <= self.reference_date:
             raise ValueError(
                 f"Secondary date ({self.secondary_date}) must be after "
-                f"primary date ({self.primary_date})"
+                f"Reference date ({self.reference_date})"
             )
 
         if self.polarization not in {"VV", "VH", "HH", "HV"}:
@@ -148,7 +148,9 @@ class DispProduct:
         return cls(
             path=path,
             frame_id=int(match.group("frame_id")),
-            primary_date=datetime.strptime(match.group("primary"), "%Y%m%dT%H%M%SZ"),
+            reference_date=datetime.strptime(
+                match.group("reference"), "%Y%m%dT%H%M%SZ"
+            ),
             secondary_date=datetime.strptime(
                 match.group("secondary"), "%Y%m%dT%H%M%SZ"
             ),
@@ -485,7 +487,7 @@ class DispProduct:
     @property
     def baseline_days(self) -> int:
         """Temporal baseline in days between acquisitions."""
-        return (self.secondary_date - self.primary_date).days
+        return (self.secondary_date - self.reference_date).days
 
     @property
     def filename(self) -> str:
@@ -501,6 +503,6 @@ class DispProduct:
         """Return a string representation."""
         return (
             f"DispProduct(frame={self.frame_id}, "
-            f"{self.primary_date.date()} → {self.secondary_date.date()}, "
+            f"{self.reference_date.date()} → {self.secondary_date.date()}, "
             f"{self.polarization})"
         )

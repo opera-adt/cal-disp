@@ -28,7 +28,7 @@ def compare_cal_products(
     tolerance : float, optional
         Tolerance for floating point comparison. Default is 1e-6.
     group : str, optional
-        Which group to validate: "main", "model_3d", or "all". Default is "all".
+        Which group to validate: "main", "auxiliary", or "all". Default is "all".
 
     Returns
     -------
@@ -52,19 +52,19 @@ def compare_cal_products(
             return False
 
     # Compare model_3d group if it exists
-    if group in ("model_3d", "all"):
-        ref_has_model = ref_cal.has_model_3d()
-        test_has_model = test_cal.has_model_3d()
+    if group in ("auxiliary", "all"):
+        ref_has_model = ref_cal.has_auxiliary()
+        test_has_model = test_cal.has_auxiliary()
 
         if ref_has_model != test_has_model:
             logger.error(
-                f"model_3d group mismatch: reference={ref_has_model},"
+                f"auxiliary group mismatch: reference={ref_has_model},"
                 f" test={test_has_model}"
             )
             return False
 
         if ref_has_model and not _compare_group(
-            ref_cal, test_cal, "model_3d", tolerance
+            ref_cal, test_cal, "auxiliary", tolerance
         ):
             return False
 
@@ -79,7 +79,7 @@ def _compare_metadata(ref: CalProduct, test: CalProduct) -> bool:
         "sensor": (ref.sensor, test.sensor),
         "mode": (ref.mode, test.mode),
         "polarization": (ref.polarization, test.polarization),
-        "primary_date": (ref.primary_date, test.primary_date),
+        "reference_date": (ref.reference_date, test.reference_date),
         "secondary_date": (ref.secondary_date, test.secondary_date),
         "version": (ref.version, test.version),
     }
@@ -102,7 +102,7 @@ def _compare_group(
     tolerance: float,
 ) -> bool:
     """Compare a specific group."""
-    group_name = "main" if group == "main" else "model_3d"
+    group_name = "main" if group == "main" else "auxiliary"
     logger.info(f"Validating {group_name} group...")
 
     # Open datasets
@@ -110,8 +110,8 @@ def _compare_group(
         ref_ds = ref.open_dataset()
         test_ds = test.open_dataset()
     else:
-        ref_ds = ref.open_model_3d()
-        test_ds = test.open_model_3d()
+        ref_ds = ref.open_auxiliary()
+        test_ds = test.open_auxiliary()
 
     # Compare coordinates
     if not _compare_coords(ref_ds, test_ds):

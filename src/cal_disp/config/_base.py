@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -15,13 +15,21 @@ class InputFileGroup(YamlModel):
     Attributes
     ----------
     disp_file : Path
-        Path to DISP file.
-    calibration_reference_latlon_file : Path
-        Path to UNR grid lookup table (e.g., grid_latlon_lookup_v0.2.txt).
-    calibration_reference_grid_dir : Path
-        Directory containing UNR .tenv8 timeseries files.
+        Path to OPERA DISP-S1 displacement product file.
     frame_id : int
-        Frame ID of the DISP frame.
+        OPERA frame identifier for the DISP product.
+    unr_grid_latlon_file : Path
+        Path to UNR grid lookup table (e.g., grid_latlon_lookup_v0.2.txt).
+    unr_timeseries_dir : Path
+        Directory containing UNR .tenv8 time series files.
+    unr_grid_version : str
+        Version identifier for UNR gridded time series.
+    unr_grid_type : str
+        Type of UNR gridded data. Valid values: 'constant', 'variable'.
+    unr_grid_reference_frame : str
+        Reference frame for UNR gridded data. Valid values: 'IGS20', 'PA', 'NA'.
+    skip_file_checks : bool, optional
+        Skip validation of file existence and readability. Default is False.
 
     """
 
@@ -30,19 +38,29 @@ class InputFileGroup(YamlModel):
         description="Path to DISP file.",
     )
 
-    calibration_reference_latlon_file: RequiredPath = Field(
+    frame_id: int = Field(
+        ...,
+        description="Frame ID of the DISP frame.",
+    )
+
+    unr_grid_latlon_file: RequiredPath = Field(
         ...,
         description="Path to UNR grid lookup table (grid_latlon_lookup_v0.2.txt).",
     )
 
-    calibration_reference_grid_dir: RequiredPath = Field(
+    unr_timeseries_dir: RequiredPath = Field(
         ...,
         description="Directory containing UNR .tenv8 timeseries files.",
     )
 
-    frame_id: int = Field(
+    unr_grid_version: str = Field(
         ...,
-        description="Frame ID of the DISP frame.",
+        description="Version of UNR gridded data, e.g. [0.2].",
+    )
+
+    unr_grid_type: Literal["constant", "variable"] = Field(
+        ...,
+        description="Type of UNR gridded data [constant|variable].",
     )
 
     skip_file_checks: bool = False
@@ -60,7 +78,7 @@ class InputFileGroup(YamlModel):
             raise ValueError(msg)
         return v
 
-    @field_validator("calibration_reference_latlon_file")
+    @field_validator("unr_grid_latlon_file")
     @classmethod
     def validate_latlon_file(cls, v: Path) -> Path:
         """Validate latlon file is a lookup table."""
@@ -87,7 +105,7 @@ class InputFileGroup(YamlModel):
         if self.skip_file_checks:
             return self
 
-        v = self.calibration_reference_grid_dir
+        v = self.unr_timeseries_dir
         if not v.exists():
             raise ValueError(f"Grid directory does not exist: {v}")
         if not v.is_dir():

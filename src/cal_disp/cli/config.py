@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import functools
 from pathlib import Path
-from typing import Final
+from typing import Final, Literal
 
 import click
 
@@ -19,9 +19,11 @@ DEFAULT_PRODUCT_VERSION: Final[str] = "1.0"
 
 def create_config(
     disp_file: Path,
-    calibration_grid_latlon_file: Path,
-    calibration_grid_ts_dir: Path,
     frame_id: int,
+    unr_grid_latlon_file: Path,
+    unr_timeseries_dir: Path,
+    unr_grid_version: str,
+    unr_grid_type: Literal["constant", "variable"],
     algorithm_params_file: Path,
     los_file: Path,
     dem_file: Path,
@@ -50,12 +52,16 @@ def create_config(
     ----------
     disp_file : Path
         Input displacement file to calibrate.
-    calibration_grid_latlon_file : Path
+    unr_grid_latlon_file : Path
         UNR grid lookup table (grid_latlon_lookup_v0.2.txt).
-    calibration_grid_ts_dir : Path
+    unr_timeseries_dir : Path
         Directory containing UNR .tenv8 timeseries files.
     frame_id : int
         Frame ID of the DISP frame.
+    unr_grid_version: str
+        Version of UNR gridded data.
+    unr_grid_type: str
+        Type of UNR gridded data [constant|variable].
     algorithm_params_file : Path
         Algorithm parameters configuration file.
     los_file : Path
@@ -71,7 +77,7 @@ def create_config(
     mask_file : Path or None, optional
         Byte mask file to ignore low correlation/bad data (0=invalid, 1=good).
     ref_tropo_files : list[Path] or None, optional
-        TROPO files for reference (primary) date.
+        TROPO files for reference date.
     sec_tropo_files : list[Path] or None, optional
         TROPO files for secondary date.
     iono_files : list[Path] or None, optional
@@ -128,7 +134,7 @@ def create_config(
     # Validate required inputs exist
     required_files = {
         "disp_file": disp_file,
-        "calibration_grid_latlon_file": calibration_grid_latlon_file,
+        "unr_grid_latlon_file": unr_grid_latlon_file,
         "algorithm_params_file": algorithm_params_file,
         "los_file": los_file,
         "dem_file": dem_file,
@@ -138,13 +144,11 @@ def create_config(
             raise FileNotFoundError(f"{name} not found: {path}")
 
     # Validate calibration grid directory
-    if not calibration_grid_ts_dir.exists():
-        raise FileNotFoundError(
-            f"calibration_grid_ts_dir not found: {calibration_grid_ts_dir}"
-        )
-    if not calibration_grid_ts_dir.is_dir():
+    if not unr_timeseries_dir.exists():
+        raise FileNotFoundError(f"unr_timeseries_dir not found: {unr_timeseries_dir}")
+    if not unr_timeseries_dir.is_dir():
         raise ValueError(
-            f"calibration_grid_ts_dir must be a directory: {calibration_grid_ts_dir}"
+            f"unr_timeseries_dir must be a directory: {unr_timeseries_dir}"
         )
 
     # Validate optional single files if provided
@@ -193,8 +197,8 @@ def create_config(
     # Resolve to absolute paths unless keeping relative
     if not keep_relative:
         disp_file = disp_file.resolve()
-        calibration_grid_latlon_file = calibration_grid_latlon_file.resolve()
-        calibration_grid_ts_dir = calibration_grid_ts_dir.resolve()
+        unr_grid_latlon_file = unr_grid_latlon_file.resolve()
+        unr_timeseries_dir = unr_timeseries_dir.resolve()
         algorithm_params_file = algorithm_params_file.resolve()
         los_file = los_file.resolve()
         dem_file = dem_file.resolve()
@@ -223,18 +227,20 @@ def create_config(
     # Build configuration groups
     input_file_group = InputFileGroup(
         disp_file=disp_file,
-        calibration_reference_latlon_file=calibration_grid_latlon_file,
-        calibration_reference_grid_dir=calibration_grid_ts_dir,
         frame_id=frame_id,
+        unr_grid_latlon_file=unr_grid_latlon_file,
+        unr_timeseries_dir=unr_timeseries_dir,
+        unr_grid_version=unr_grid_version,
+        unr_grid_type=unr_grid_type,
     )
 
     dynamic_ancillary_group = DynamicAncillaryFileGroup(
         algorithm_parameters_file=algorithm_params_file,
-        los_file=los_file,
-        dem_file=dem_file,
+        static_los_file=los_file,
+        static_dem_file=dem_file,
         mask_file=mask_file,
-        reference_tropo_files=ref_tropo_files,
-        secondary_tropo_files=sec_tropo_files,
+        ref_tropo_files=ref_tropo_files,
+        sec_tropo_files=sec_tropo_files,
         iono_files=iono_files,
         tiles_files=tiles_files,
     )
@@ -244,14 +250,14 @@ def create_config(
     if any([algorithm_overrides_json, defo_area_db_json, event_db_json]):
         static_ancillary_group = StaticAncillaryFileGroup(
             algorithm_parameters_overrides_json=algorithm_overrides_json,
-            deformation_area_database_json=defo_area_db_json,
-            event_database_json=event_db_json,
+            defo_area_db_json=defo_area_db_json,
+            event_db_json=event_db_json,
         )
 
     product_path_group = ProductPathGroup(
         product_path=output_dir,
         scratch_path=work_dir,
-        output_path=output_dir,
+        sas_output_path=output_dir,
     )
 
     worker_settings = WorkerSettings(
@@ -297,25 +303,39 @@ def create_config(
     help="Input displacement file.",
 )
 @click.option(
-    "--calibration-grid-latlon",
-    "-cl",
-    type=click.Path(exists=True, path_type=Path),
-    required=True,
-    help="UNR grid lookup table (grid_latlon_lookup_v0.2.txt).",
-)
-@click.option(
-    "--calibration-grid-dir",
-    "-cd",
-    type=click.Path(exists=True, path_type=Path, file_okay=False, dir_okay=True),
-    required=True,
-    help="Directory containing UNR .tenv8 timeseries files.",
-)
-@click.option(
     "--frame-id",
     "-f",
     type=int,
     required=True,
     help="Frame ID of the DISP frame.",
+)
+@click.option(
+    "--unr-grid-latlon",
+    "-ul",
+    type=click.Path(exists=True, path_type=Path),
+    required=True,
+    help="UNR grid lookup table (grid_latlon_lookup_v0.2.txt).",
+)
+@click.option(
+    "--unr-grid-dir",
+    "-ud",
+    type=click.Path(exists=True, path_type=Path, file_okay=False, dir_okay=True),
+    required=True,
+    help="Directory containing UNR .tenv8 timeseries files.",
+)
+@click.option(
+    "--unr-grid-version",
+    "-uv",
+    type=str,
+    required=True,
+    help="Version of the UNR gridded data.",
+)
+@click.option(
+    "--unr-grid-type",
+    "-ut",
+    type=str,
+    default="constant",
+    help="Type of the UNR gridded data.",
 )
 @click.option(
     "--algorithm-params",
@@ -438,9 +458,11 @@ def create_config(
 def config_cli(
     config_file: Path,
     disp_file: Path,
-    calibration_grid_latlon: Path,
-    calibration_grid_dir: Path,
     frame_id: int,
+    unr_grid_latlon: Path,
+    unr_grid_dir: Path,
+    unr_grid_version: str,
+    unr_grid_type: Literal["constant", "variable"],
     algorithm_params: Path,
     los_file: Path,
     dem_file: Path,
@@ -474,9 +496,11 @@ def config_cli(
 
         cal-disp config \
             --disp-file data/disp.h5 \
-            --calibration-grid-latlon data/unr/grid_latlon_lookup_v0.2.txt \
-            --calibration-grid-dir data/unr/ \
+            --unr_grid_latlon_file data/unr/grid_latlon_lookup_v0.2.txt \
+            --unr_timeseries_dir data/unr/ \
             --frame-id 8882 \
+            --unr_grid_version 0.2 \
+            --unr_grid_type constant \
             --algorithm-params config/params.yaml \
             --los-file data/los.h5 \
             --dem-file data/dem.h5 \
@@ -487,9 +511,11 @@ def config_cli(
 
         cal-disp config \
             --disp-file data/disp.h5 \
-            --calibration-grid-latlon data/unr/grid_latlon_lookup_v0.2.txt \
-            --calibration-grid-dir data/unr/ \
+            --unr_grid_latlon_file data/unr/grid_latlon_lookup_v0.2.txt \
+            --unr_timeseries_dir data/unr/ \
             --frame-id 8882 \
+            --unr_grid_version 0.2 \
+            --unr_grid_type constant \
             --algorithm-params config/params.yaml \
             --los-file data/los.h5 \
             --dem-file data/dem.h5 \
@@ -510,9 +536,11 @@ def config_cli(
 
         config_path = create_config(
             disp_file=disp_file,
-            calibration_grid_latlon_file=calibration_grid_latlon,
-            calibration_grid_ts_dir=calibration_grid_dir,
+            unr_grid_latlon_file=unr_grid_latlon,
+            unr_timeseries_dir=unr_grid_dir,
             frame_id=frame_id,
+            unr_grid_version=unr_grid_version,
+            unr_grid_type=unr_grid_type,
             algorithm_params_file=algorithm_params,
             los_file=los_file,
             dem_file=dem_file,

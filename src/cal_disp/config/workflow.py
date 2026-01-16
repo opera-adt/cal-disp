@@ -128,15 +128,10 @@ class CalibrationWorkflow(YamlModel):
         else:
             if self.input_options.disp_file is None:
                 errors.append("disp_file must be provided in input_options")
-            if self.input_options.calibration_reference_latlon_file is None:
-                errors.append(
-                    "calibration_reference_latlon_file must be provided in"
-                    " input_options"
-                )
-            if self.input_options.calibration_reference_grid_dir is None:
-                errors.append(
-                    "calibration_reference_grid_dir must be provided in input_options"
-                )
+            if self.input_options.unr_grid_latlon_file is None:
+                errors.append("unr_grid_latlon_file must be provided in input_options")
+            if self.input_options.unr_timeseries_dir is None:
+                errors.append("unr_timeseries_dir must be provided in input_options")
 
         # Check dynamic ancillaries
         if self.dynamic_ancillary_options is None:
@@ -261,15 +256,11 @@ class CalibrationWorkflow(YamlModel):
                     "Input Files:",
                     f"  DISP file:        {self.input_options.disp_file}",
                     f"  Frame ID:         {self.input_options.frame_id}",
-                    (
-                        "  UNR lookup:       "
-                        f"{self.input_options.calibration_reference_latlon_file}"
-                    ),
-                    (
-                        "  UNR grid dir:     "
-                        f"{self.input_options.calibration_reference_grid_dir}"
-                    ),
+                    f"  UNR lookup:       {self.input_options.unr_grid_latlon_file}",
+                    f"  UNR grid dir:     {self.input_options.unr_timeseries_dir}",
                     "",
+                    f"  UNR version:         {self.input_options.unr_grid_version}",
+                    f"  UNR type:         {self.input_options.unr_grid_type}",
                 ]
             )
         else:
@@ -360,17 +351,17 @@ class CalibrationWorkflow(YamlModel):
             output_directory=Path("./output"),
             input_options=InputFileGroup(
                 disp_file=Path("input/disp_frame_8882.nc"),
-                calibration_reference_latlon_file=Path(
-                    "input/unr/grid_latlon_lookup_v0.2.txt"
-                ),
-                calibration_reference_grid_dir=Path("input/unr/"),
+                unr_grid_latlon_file=Path("input/unr/grid_latlon_lookup_v0.2.txt"),
+                unr_timeseries_dir=Path("input/unr/"),
                 frame_id=8882,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
                 skip_file_checks=True,
             ),
             dynamic_ancillary_options=DynamicAncillaryFileGroup(
-                algorithm_parameters_file="algorithm.yaml",
-                static_los_file="line_of_sight_enu.tif",
-                static_dem_file="dem.tif",
+                algorithm_parameters_file=Path("algorithm.yaml"),
+                static_los_file=Path("line_of_sight_enu.tif"),
+                static_dem_file=Path("dem.tif"),
             ),
             worker_settings=WorkerSettings.create_standard(),
             keep_paths_relative=True,
