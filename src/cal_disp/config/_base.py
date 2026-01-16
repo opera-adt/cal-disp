@@ -35,32 +35,32 @@ class InputFileGroup(YamlModel):
 
     disp_file: RequiredPath = Field(
         ...,
-        description="Path to DISP file.",
+        description="Path to DISP file",
     )
 
     frame_id: int = Field(
         ...,
-        description="Frame ID of the DISP frame.",
+        description="Frame ID of the DISP frame",
     )
 
     unr_grid_latlon_file: RequiredPath = Field(
         ...,
-        description="Path to UNR grid lookup table (grid_latlon_lookup_v0.2.txt).",
+        description="Path to UNR grid lookup table (grid_latlon_lookup_v0.2.txt)",
     )
 
     unr_timeseries_dir: RequiredPath = Field(
         ...,
-        description="Directory containing UNR .tenv8 timeseries files.",
+        description="Directory containing UNR .tenv8 timeseries files",
     )
 
     unr_grid_version: str = Field(
         ...,
-        description="Version of UNR gridded data, e.g. [0.2].",
+        description="Version of UNR gridded data, e.g. [0.2]",
     )
 
     unr_grid_type: Literal["constant", "variable"] = Field(
         ...,
-        description="Type of UNR gridded data [constant|variable].",
+        description="Type of UNR gridded data [constant|variable]",
     )
 
     skip_file_checks: bool = False
@@ -154,7 +154,7 @@ class DynamicAncillaryFileGroup(YamlModel):
 
     algorithm_parameters_file: RequiredPath = Field(
         ...,
-        description="Path to file containing SAS algorithm parameters.",
+        description="Path to file containing SAS algorithm parameters",
     )
 
     los_file: RequiredPath = Field(
@@ -162,7 +162,7 @@ class DynamicAncillaryFileGroup(YamlModel):
         alias="static_los_file",
         description=(
             "Path to the DISP static los layer file (1 per frame) with line-of-sight"
-            " unit vectors."
+            " unit vectors"
         ),
     )
 
@@ -171,7 +171,7 @@ class DynamicAncillaryFileGroup(YamlModel):
         alias="static_dem_file",
         description=(
             "Path to the DISP static dem layer file (1 per frame) with line-of-sight"
-            " unit vectors."
+            " unit vectors"
         ),
     )
     # NOTE should I add also shadow_layover static file as input
@@ -190,7 +190,7 @@ class DynamicAncillaryFileGroup(YamlModel):
         alias="ref_tropo_files",
         description=(
             "Path to the TROPO file for the reference date."
-            " If not provided, tropospheric correction for reference is skipped."
+            " If not provided, tropospheric correction for reference is skipped"
         ),
     )
 
@@ -199,7 +199,7 @@ class DynamicAncillaryFileGroup(YamlModel):
         alias="sec_tropo_files",
         description=(
             "Path to the TROPO file for the secondary date."
-            " If not provided, tropospheric correction for secondary is skipped."
+            " If not provided, tropospheric correction for secondary is skipped"
         ),
     )
 
@@ -208,7 +208,7 @@ class DynamicAncillaryFileGroup(YamlModel):
         alias="iono_files",
         description=(
             "Path to the IONO files"
-            " If not provided, ionosphere correction for reference is skipped."
+            " If not provided, ionosphere correction for reference is skipped"
         ),
     )
 
@@ -216,7 +216,7 @@ class DynamicAncillaryFileGroup(YamlModel):
         default=None,
         description=(
             "Paths to the calibration tile bounds files (e.g. S1 burst bounds) covering"
-            " full frame. If none provided, calibration per tile is skipped."
+            " full frame. If none provided, calibration per tile is skipped"
         ),
     )
 
@@ -259,7 +259,7 @@ class StaticAncillaryFileGroup(YamlModel):
         default=None,
         description=(
             "JSON file containing frame-specific algorithm parameters to override the"
-            " defaults passed in the `algorithm_parameters.yaml`."
+            " defaults passed in the `algorithm_parameters.yaml`"
         ),
     )
 
@@ -268,7 +268,7 @@ class StaticAncillaryFileGroup(YamlModel):
         alias="defo_area_db_json",
         description=(
             "GeoJSON file containing list of deforming areas to exclude from"
-            " calibration (e.g. Central Valley subsidence)."
+            " calibration (e.g. Central Valley subsidence)"
         ),
     )
 
@@ -277,7 +277,7 @@ class StaticAncillaryFileGroup(YamlModel):
         alias="event_db_json",
         description=(
             "GeoJSON file containing list of events (earthquakes, volcanic activity)"
-            " for each frame."
+            " for each frame"
         ),
     )
 

@@ -1,46 +1,52 @@
 # REQUIRED: A PGE (Product Generation Executive) run configuration.
 cal_disp_workflow:
-  # REQUIRED: Configuration for required input files..
+  # REQUIRED: Configuration for required input files.
   #   Type: Object.
   input_file_group:
     # REQUIRED: Path to DISP file..
     #   Type: string.
     disp_file:
-    # REQUIRED: Path to UNR grid lookup table (grid_latlon_lookup_v0.2.txt)..
-    #   Type: string.
-    calibration_reference_latlon_file:
-    # REQUIRED: Directory containing UNR .tenv8 timeseries files..
-    #   Type: string.
-    calibration_reference_grid_dir:
     # REQUIRED: Frame ID of the DISP frame..
     #   Type: integer.
-    frame_id:
+    frame_id: 1
+    # REQUIRED: Path to UNR grid lookup table (grid_latlon_lookup_v0.2.txt).
+    #   Type: string.
+    unr_grid_latlon_file:
+    # REQUIRED: Directory containing UNR .tenv8 timeseries files.
+    #   Type: string.
+    unr_timeseries_dir:
+    # REQUIRED: Version of UNR gridded data, e.g. [0.2].
+    #   Type: string.
+    unr_grid_version: '0.2'
+    # REQUIRED: Type of UNR gridded data [constant|variable].
+    #   Type: string.
+    unr_grid_type: constant
     # No description..
     #   Type: boolean.
-    skip_file_checks: false
+    skip_file_checks: true
   # Dynamic ancillary files configuration..
   #   Type: DynamicAncillaryFileGroup | null.
   dynamic_ancillary_group:
-    # REQUIRED: Path to file containing SAS algorithm parameters..
+    # REQUIRED: Path to file containing SAS algorithm parameters.
     #   Type: string.
     algorithm_parameters_file:
-    # REQUIRED: Path to the DISP static los layer file (1 per frame) with line-of-sight unit vectors..
+    # REQUIRED: Path to the DISP static los layer file (1 per frame) with line-of-sight unit vectors.
     #   Type: string.
     static_los_file:
-    # REQUIRED: Path to the DISP static dem layer file (1 per frame) with line-of-sight unit vectors..
+    # REQUIRED: Path to the DISP static dem layer file (1 per frame) with line-of-sight unit vectors.
     #   Type: string.
     static_dem_file:
     # Optional Byte mask file used to ignore low correlation/bad data (e.g water mask).
-    #       Convention is 0 for no data/invalid, and 1 for good data. Dtype must be uint8..
+    #       Convention is 0 for no data/invalid, and 1 for good data. Dtype must be uint8.
     #   Type: string | null.
     mask_file:
     # Path to the TROPO file for the reference date. If not provided, tropospheric correction
-    #       for reference is skipped..
+    #       for reference is skipped.
     #   Type: array | null.
     ref_tropo_files:
       -
     # Path to the TROPO file for the secondary date. If not provided, tropospheric correction
-    #       for secondary is skipped..
+    #       for secondary is skipped.
     #   Type: array | null.
     sec_tropo_files:
       -
@@ -49,25 +55,25 @@ cal_disp_workflow:
     iono_files:
       -
     # Paths to the calibration tile bounds files (e.g. S1 burst bounds) covering full frame. If
-    #       none provided, calibration per tile is skipped..
+    #       none provided, calibration per tile is skipped.
     #   Type: array | null.
     tiles_files:
       -
-  # Static ancillary files configuration..
+  # Static ancillary files configuration.
   #   Type: StaticAncillaryFileGroup | null.
   static_ancillary_group:
     # JSON file containing frame-specific algorithm parameters to override the defaults passed
-    #       in the `algorithm_parameters.yaml`..
+    #       in the `algorithm_parameters.yaml`.
     #   Type: string | null.
     algorithm_parameters_overrides_json:
     # GeoJSON file containing list of deforming areas to exclude from calibration (e.g. Central
-    #       Valley subsidence)..
+    #       Valley subsidence).
     #   Type: string | null.
     defo_area_db_json:
     # GeoJSON file containing list of events (earthquakes, volcanic activity) for each frame..
     #   Type: string | null.
     event_db_json:
-  # Output configuration options..
+  # Output configuration options.
   #   Type: Object.
   output_options:
     # Version of the product, in <major>.<minor> format..
@@ -76,28 +82,28 @@ cal_disp_workflow:
     # Output file format..
     #   Type: string.
     output_format: netcdf
-    # Whether to compress output files..
+    # Whether to compress output files.
     #   Type: boolean.
     compression: true
-  # Primary executable configuration..
+  # Primary executable configuration.
   #   Type: Object.
   primary_executable:
-    # Product type of the PGE..
+    # Product type of the PGE.
     #   Type: string.
     product_type: CAL_DISP
-  # Product path configuration..
+  # Product path configuration.
   #   Type: Object.
   product_path_group:
-    # Directory where PGE will place results..
+    # Directory where PGE will place results.
     #   Type: string.
     product_path: .
-    # Path to the scratch directory for intermediate files..
+    # Path to the scratch directory for intermediate files.
     #   Type: string.
-    scratch_path: scratch
-    # Path to the SAS output directory..
+    scratch_path:
+    # Path to the SAS output directory.
     #   Type: string.
-    sas_output_path: output
-  # Dask worker and parallelism configuration..
+    sas_output_path:
+  # Dask worker and parallelism configuration.
   #   Type: Object.
   worker_settings:
     # Number of workers to use in dask.Client. Typically set to the number of physical CPU cores
@@ -115,6 +121,6 @@ cal_disp_workflow:
       - 128
       - 128
   # Path to the output log file in addition to logging to stderr. If None, will be set based
-  #     on output path..
+  #     on output path.
   #   Type: string | null.
   log_file:
