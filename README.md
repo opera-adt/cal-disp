@@ -57,8 +57,10 @@ cal-disp download unr --frame-id 8882 -o ./data/unr
 # Create config and run
 cal-disp config \
     -d ./data/OPERA_L3_DISP-S1_*.nc \
-    -cl ./data/unr/grid_latlon_lookup_v0.2.txt \
-    -cd ./data/unr \
+    -ul ./data/unr/grid_latlon_lookup_v0.2.txt \
+    -ud ./data/unr \
+    -uv 0.2 \
+    -ut constant \
     --los-file line_of_sight_enu.tif \
     --dem-file dem.tif \
     --frame-id 8882 \
