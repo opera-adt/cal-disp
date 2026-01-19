@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from ._cal import CalProduct
 from ._disp import DispProduct
 from ._static import StaticLayer
 from ._tropo import (
@@ -11,6 +10,7 @@ from ._tropo import (
 )
 from ._unr import UnrGrid
 from ._utils import bounds_contains, check_bounds_coverage, decimal_year_to_datetime
+from .output._cal import CalProduct
 
 __all__ = [
     # Product classes
