@@ -99,7 +99,7 @@ def prepare_troposphere_correction(
 
     # Process both reference and secondary dates
     for tropo_files, target_date in [
-        (reference_tropo_files, disp_product.primary_date),
+        (reference_tropo_files, disp_product.reference_date),
         (secondary_tropo_files, disp_product.secondary_date),
     ]:
         # Validate temporal matching

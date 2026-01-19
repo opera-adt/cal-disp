@@ -36,6 +36,18 @@ def sample_frame_id() -> int:
     return 8882
 
 
+@pytest.fixture
+def sample_grid_version() -> str:
+    """Sample UNR gridded data version."""
+    return "0.2"
+
+
+@pytest.fixture
+def sample_grid_type() -> str:
+    """Sample UNR gridded data type."""
+    return "constant"
+
+
 # DISP product fixtures
 
 
@@ -46,8 +58,8 @@ def sample_disp_product(tmp_path: Path) -> Path:
 
     ds = xr.Dataset(
         {
-            "unwrapped_phase": (["y", "x"], np.random.randn(ny, nx)),
-            "coherence": (["y", "x"], np.random.uniform(0.3, 0.9, (ny, nx))),
+            "displacement": (["y", "x"], np.random.randn(ny, nx)),
+            "temporal_coherence": (["y", "x"], np.random.uniform(0.3, 0.9, (ny, nx))),
             "conncomp": (["y", "x"], np.ones((ny, nx), dtype=np.uint16)),
             "latitude": (
                 ["y", "x"],
@@ -61,6 +73,7 @@ def sample_disp_product(tmp_path: Path) -> Path:
         coords={
             "y": np.arange(ny),
             "x": np.arange(nx),
+            "time": [datetime(2022, 7, 22, 0, 26, 57)],
         },
         attrs={
             "description": "OPERA DISP-S1 Product",
@@ -115,6 +128,7 @@ def sample_disp_product_with_corrections(tmp_path: Path) -> Path:
         coords={
             "y": np.arange(ny) * 30.0 + 3500000.0,
             "x": np.arange(nx) * 30.0 + 100000.0,
+            "time": [datetime(2022, 7, 22, 0, 26, 57)],
         },
     )
 

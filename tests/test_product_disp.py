@@ -27,7 +27,7 @@ class TestDispProductParsing:
         assert product.mode == "IW"
         assert product.polarization == "VV"
         assert product.version == "1.0"
-        assert product.primary_date == datetime(2022, 1, 11, 0, 26, 51)
+        assert product.reference_date == datetime(2022, 1, 11, 0, 26, 51)
         assert product.secondary_date == datetime(2022, 7, 22, 0, 26, 57)
 
     def test_from_path_invalid_filename(self):
@@ -41,7 +41,7 @@ class TestDispProductParsing:
             DispProduct(
                 path=Path("test.nc"),
                 frame_id=0,
-                primary_date=datetime(2022, 1, 1),
+                reference_date=datetime(2022, 1, 1),
                 secondary_date=datetime(2022, 2, 1),
                 sensor="S1",
                 polarization="VV",
@@ -55,7 +55,7 @@ class TestDispProductParsing:
             DispProduct(
                 path=Path("test.nc"),
                 frame_id=8882,
-                primary_date=datetime(2022, 2, 1),
+                reference_date=datetime(2022, 2, 1),
                 secondary_date=datetime(2022, 1, 1),
                 sensor="S1",
                 polarization="VV",
@@ -69,7 +69,7 @@ class TestDispProductParsing:
             DispProduct(
                 path=Path("test.nc"),
                 frame_id=8882,
-                primary_date=datetime(2022, 1, 1),
+                reference_date=datetime(2022, 1, 1),
                 secondary_date=datetime(2022, 2, 1),
                 sensor="S1",
                 polarization="XX",
@@ -86,7 +86,7 @@ class TestDispProductProperties:
         product = DispProduct(
             path=Path("test.nc"),
             frame_id=8882,
-            primary_date=datetime(2022, 1, 1),
+            reference_date=datetime(2022, 1, 1),
             secondary_date=datetime(2022, 1, 13),
             sensor="S1",
             polarization="VV",
@@ -101,7 +101,7 @@ class TestDispProductProperties:
         product = DispProduct(
             path=Path("/data/test.nc"),
             frame_id=8882,
-            primary_date=datetime(2022, 1, 1),
+            reference_date=datetime(2022, 1, 1),
             secondary_date=datetime(2022, 2, 1),
             sensor="S1",
             polarization="VV",
@@ -116,7 +116,7 @@ class TestDispProductProperties:
         product = DispProduct(
             path=Path("/nonexistent/test.nc"),
             frame_id=8882,
-            primary_date=datetime(2022, 1, 1),
+            reference_date=datetime(2022, 1, 1),
             secondary_date=datetime(2022, 2, 1),
             sensor="S1",
             polarization="VV",
@@ -193,7 +193,7 @@ def test_repr():
     product = DispProduct(
         path=Path("test.nc"),
         frame_id=8882,
-        primary_date=datetime(2022, 1, 1),
+        reference_date=datetime(2022, 1, 1),
         secondary_date=datetime(2022, 1, 13),
         sensor="S1",
         polarization="VV",

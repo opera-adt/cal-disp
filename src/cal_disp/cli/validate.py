@@ -19,10 +19,10 @@ import click
 @click.option(
     "--group",
     "-g",
-    type=click.Choice(["main", "model_3d", "all"]),
+    type=click.Choice(["main", "auxiliary", "all"]),
     default="all",
     show_default=True,
-    help="Which group to validate.",
+    help="Which group to validate: main (required data), auxiliary (optional), or all.",
 )
 @click.pass_context
 def validate_cli(
@@ -35,6 +35,7 @@ def validate_cli(
     """Validate a CAL-DISP product against a reference.
 
     Compares TEST product against REFERENCE product and reports differences.
+    Validates structure (dimensions, types) and data values within tolerance.
 
     Examples
     --------

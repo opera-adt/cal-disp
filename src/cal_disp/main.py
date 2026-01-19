@@ -55,16 +55,17 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
 
     # Run calibration
     output_file = run_calibration(
-        disp_file=runconfig.input_options.disp_file,
-        calibration_latlon=runconfig.input_options.calibration_reference_latlon_file,
-        calibration_reference_grid_dir=runconfig.input_options.calibration_reference_grid_dir,
+        disp_file=Path(runconfig.input_options.disp_file),
+        unr_grid_latlon_file=Path(runconfig.input_options.unr_grid_latlon_file),
+        unr_timeseries_dir=Path(runconfig.input_options.unr_timeseries_dir),
         output_dir=runconfig.output_directory,
-        dem_file=runconfig.dynamic_ancillary_options.dem_file,
-        los_file=runconfig.dynamic_ancillary_options.los_file,
+        dem_file=Path(runconfig.dynamic_ancillary_options.dem_file),
+        los_file=Path(runconfig.dynamic_ancillary_options.los_file),
         block_shape=runconfig.worker_settings.block_shape,
         n_workers=runconfig.worker_settings.n_workers,
         threads_per_worker=runconfig.worker_settings.threads_per_worker,
         work_directory=runconfig.work_directory,
+        pge_runconfig=str(runconfig._to_yaml_obj()),
     )
 
     # Generate browse image

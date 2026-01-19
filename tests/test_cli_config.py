@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import pytest
 import yaml  # type: ignore[import-untyped]
@@ -23,6 +24,8 @@ class TestCreateConfig:
         sample_algorithm_params: Path,
         sample_static_layers: tuple[Path, Path],
         sample_frame_id: int,
+        sample_grid_version: str,
+        sample_grid_type: Literal["constant", "variable"],
     ):
         """Should create a valid configuration file."""
         los_file, dem_file = sample_static_layers
@@ -31,8 +34,10 @@ class TestCreateConfig:
 
         config_path = create_config(
             disp_file=sample_disp_product,
-            calibration_grid_latlon_file=sample_unr_grid_latlon,
-            calibration_grid_ts_dir=sample_unr_timeseries_dir,
+            unr_grid_latlon_file=sample_unr_grid_latlon,
+            unr_timeseries_dir=sample_unr_timeseries_dir,
+            unr_grid_version=sample_grid_version,
+            unr_grid_type=sample_grid_type,
             frame_id=sample_frame_id,
             algorithm_params_file=sample_algorithm_params,
             los_file=los_file,
@@ -53,6 +58,8 @@ class TestCreateConfig:
         sample_algorithm_params: Path,
         sample_static_layers: tuple[Path, Path],
         sample_frame_id: int,
+        sample_grid_version: str,
+        sample_grid_type: Literal["constant", "variable"],
     ):
         """Generated config should contain all required fields."""
         los_file, dem_file = sample_static_layers
@@ -61,8 +68,10 @@ class TestCreateConfig:
 
         config_path = create_config(
             disp_file=sample_disp_product,
-            calibration_grid_latlon_file=sample_unr_grid_latlon,
-            calibration_grid_ts_dir=sample_unr_timeseries_dir,
+            unr_grid_latlon_file=sample_unr_grid_latlon,
+            unr_timeseries_dir=sample_unr_timeseries_dir,
+            unr_grid_version=sample_grid_version,
+            unr_grid_type=sample_grid_type,
             frame_id=sample_frame_id,
             algorithm_params_file=sample_algorithm_params,
             los_file=los_file,
@@ -93,8 +102,10 @@ class TestCreateConfig:
         with pytest.raises(FileNotFoundError, match="disp_file"):
             create_config(
                 disp_file=nonexistent_disp,
-                calibration_grid_latlon_file=sample_unr_grid_latlon,
-                calibration_grid_ts_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
                 frame_id=8882,
                 algorithm_params_file=sample_algorithm_params,
                 los_file=los_file,
@@ -118,8 +129,10 @@ class TestCreateConfig:
         with pytest.raises(ValueError, match="frame_id must be >= 0"):
             create_config(
                 disp_file=sample_disp_product,
-                calibration_grid_latlon_file=sample_unr_grid_latlon,
-                calibration_grid_ts_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
                 frame_id=-1,
                 algorithm_params_file=sample_algorithm_params,
                 los_file=los_file,
@@ -143,8 +156,10 @@ class TestCreateConfig:
         with pytest.raises(ValueError, match="n_workers must be >= 1"):
             create_config(
                 disp_file=sample_disp_product,
-                calibration_grid_latlon_file=sample_unr_grid_latlon,
-                calibration_grid_ts_dir=sample_unr_timeseries_dir,
+                unr_grid_latlon_file=sample_unr_grid_latlon,
+                unr_timeseries_dir=sample_unr_timeseries_dir,
+                unr_grid_version="0.2",
+                unr_grid_type="constant",
                 frame_id=8882,
                 algorithm_params_file=sample_algorithm_params,
                 los_file=los_file,
@@ -170,8 +185,10 @@ class TestCreateConfig:
 
         create_config(
             disp_file=sample_disp_product,
-            calibration_grid_latlon_file=sample_unr_grid_latlon,
-            calibration_grid_ts_dir=sample_unr_timeseries_dir,
+            unr_grid_latlon_file=sample_unr_grid_latlon,
+            unr_timeseries_dir=sample_unr_timeseries_dir,
+            unr_grid_version="0.2",
+            unr_grid_type="constant",
             frame_id=8882,
             algorithm_params_file=sample_algorithm_params,
             los_file=los_file,
@@ -197,8 +214,10 @@ class TestCreateConfig:
 
         config_path = create_config(
             disp_file=sample_disp_product,
-            calibration_grid_latlon_file=sample_unr_grid_latlon,
-            calibration_grid_ts_dir=sample_unr_timeseries_dir,
+            unr_grid_latlon_file=sample_unr_grid_latlon,
+            unr_timeseries_dir=sample_unr_timeseries_dir,
+            unr_grid_version="0.2",
+            unr_grid_type="constant",
             frame_id=8882,
             algorithm_params_file=sample_algorithm_params,
             los_file=los_file,
@@ -227,8 +246,10 @@ class TestCreateConfig:
 
         config_path = create_config(
             disp_file=sample_disp_product,
-            calibration_grid_latlon_file=sample_unr_grid_latlon,
-            calibration_grid_ts_dir=sample_unr_timeseries_dir,
+            unr_grid_latlon_file=sample_unr_grid_latlon,
+            unr_timeseries_dir=sample_unr_timeseries_dir,
+            unr_grid_version="0.2",
+            unr_grid_type="constant",
             frame_id=8882,
             algorithm_params_file=sample_algorithm_params,
             los_file=los_file,
@@ -270,12 +291,16 @@ class TestConfigCLI:
                 str(config_file),
                 "--disp-file",
                 str(sample_disp_product),
-                "--calibration-grid-latlon",
+                "--unr-grid-latlon",
                 str(sample_unr_grid_latlon),
-                "--calibration-grid-dir",
+                "--unr-grid-dir",
                 str(sample_unr_timeseries_dir),
                 "--frame-id",
                 "8882",
+                "--unr-grid-type",
+                "constant",
+                "--unr-grid-version",
+                "0.2",
                 "--algorithm-params",
                 str(sample_algorithm_params),
                 "--los-file",
@@ -318,12 +343,16 @@ class TestConfigCLI:
             [
                 "--disp-file",
                 str(nonexistent),
-                "--calibration-grid-latlon",
+                "--unr-grid-latlon",
                 str(sample_unr_grid_latlon),
-                "--calibration-grid-dir",
+                "--unr-grid-dir",
                 str(sample_unr_timeseries_dir),
                 "--frame-id",
                 "8882",
+                "--unr-grid-type",
+                "constant",
+                "--unr-grid-version",
+                "0.2",
                 "--algorithm-params",
                 str(sample_algorithm_params),
                 "--los-file",
@@ -363,12 +392,16 @@ class TestConfigCLI:
             [
                 "--disp-file",
                 str(sample_disp_product),
-                "--calibration-grid-latlon",
+                "--unr-grid-latlon",
                 str(sample_unr_grid_latlon),
-                "--calibration-grid-dir",
+                "--unr-grid-dir",
                 str(sample_unr_timeseries_dir),
                 "--frame-id",
                 "8882",
+                "--unr-grid-type",
+                "constant",
+                "--unr-grid-version",
+                "0.2",
                 "--algorithm-params",
                 str(sample_algorithm_params),
                 "--los-file",
@@ -409,12 +442,16 @@ class TestConfigCLI:
                 str(config_file),
                 "--disp-file",
                 str(sample_disp_product),
-                "--calibration-grid-latlon",
+                "--unr-grid-latlon",
                 str(sample_unr_grid_latlon),
-                "--calibration-grid-dir",
+                "--unr-grid-dir",
                 str(sample_unr_timeseries_dir),
                 "--frame-id",
                 "8882",
+                "--unr-grid-type",
+                "constant",
+                "--unr-grid-version",
+                "0.2",
                 "--algorithm-params",
                 str(sample_algorithm_params),
                 "--los-file",
