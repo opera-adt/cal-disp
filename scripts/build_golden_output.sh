@@ -65,8 +65,10 @@ echo "Config file will be created at: ${CONFIG_FILE}"
 
 cal-disp config \
     -d "${DISP_FILE_ABS}" \
-    -cl "${WORK_DIR}/input_data/unr/grid_latlon_lookup_v0.2.txt" \
-    -cd "${WORK_DIR}/input_data/unr" \
+    -ul "${WORK_DIR}/input_data/unr/grid_latlon_lookup_v0.2.txt" \
+    -ud "${WORK_DIR}/input_data/unr" \
+    -uv "0.2" \
+    -ut "variable" \
     --los-file "${WORK_DIR}/input_data/static_input/OPERA_L3_DISP-S1-STATIC_F08882_20140403_S1A_v1.0_line_of_sight_enu.tif" \
     --dem-file "${WORK_DIR}/input_data/static_input/OPERA_L3_DISP-S1-STATIC_F08882_20140403_S1A_v1.0_dem.tif" \
     -a "${WORK_DIR}/configs/algorithm_parameters.yaml" \

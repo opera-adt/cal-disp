@@ -59,7 +59,11 @@ def make_browse_image_from_nc(
 ) -> None:
     """Create a PNG browse image for the output product from product in NetCDF file."""
     with xr.open_dataset(input_filename) as ds:
-        arr = ds["calibration"].values
+        arr = ds["calibration"]
+        # Drop time dimension if it exists
+        if "time" in arr.dims:
+            arr = arr.isel(time=0)
+        arr = arr.values
 
     mask = np.isnan(arr)
 

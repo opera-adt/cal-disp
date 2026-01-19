@@ -186,7 +186,7 @@ def run_calibration(
     # TODO: Load GNSS calibration grid and compute actual calibration
     # For now, copy displacement values as placeholder
     calibration = xr.DataArray(
-        ds_disp.displacement.values,
+        ds_disp.displacement.values[np.newaxis, :, :],
         coords=coords,
         dims=["time", "y", "x"],
         attrs={"units": "meters", "long_name": "calibration_correction"},
@@ -204,25 +204,25 @@ def run_calibration(
     # Note: model_3d is 2D (y, x) - represents velocity rates, not time series
     coarse_y = y[::167]
     coarse_x = x[::167]
-    coarse_shape = (len(coarse_y), len(coarse_x))
+    coarse_shape = (len(time), len(coarse_y), len(coarse_x))
 
     model_3d = {
         "north_south": xr.DataArray(
             np.zeros(coarse_shape, dtype=np.float32),
-            coords={"y": coarse_y, "x": coarse_x},
-            dims=["y", "x"],
+            coords={"time": time, "y": coarse_y, "x": coarse_x},
+            dims=["time", "y", "x"],
             attrs={"units": "meters/year", "long_name": "north_south_velocity"},
         ),
         "east_west": xr.DataArray(
             np.zeros(coarse_shape, dtype=np.float32),
-            coords={"y": coarse_y, "x": coarse_x},
-            dims=["y", "x"],
+            coords={"time": time, "y": coarse_y, "x": coarse_x},
+            dims=["time", "y", "x"],
             attrs={"units": "meters/year", "long_name": "east_west_velocity"},
         ),
         "up_down": xr.DataArray(
             np.zeros(coarse_shape, dtype=np.float32),
-            coords={"y": coarse_y, "x": coarse_x},
-            dims=["y", "x"],
+            coords={"time": time, "y": coarse_y, "x": coarse_x},
+            dims=["time", "y", "x"],
             attrs={"units": "meters/year", "long_name": "up_down_velocity"},
         ),
     }

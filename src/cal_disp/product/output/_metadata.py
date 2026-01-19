@@ -71,7 +71,6 @@ def build_metadata_dataset(
             "description": "Algorithm parameters in YAML format",
             "long_name": "Algorithm Parameters",
             "dtype": "str",
-            "format": "YAML",
         },
     )
 

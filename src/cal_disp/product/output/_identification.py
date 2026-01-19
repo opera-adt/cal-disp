@@ -275,23 +275,26 @@ def build_identification_dataset(
     )
 
     data_vars["source_calibration_file_list"] = xr.DataArray(
-        source_calibration_file_list,
+        ", ".join(source_calibration_file_list),
         attrs={
-            "description": "List of input UNR latlon and grid points tenv8 files",
+            "description": (
+                "Comma-separated list of input UNR latlon and grid points tenv8 files"
+            ),
             "long_name": "Source Calibration File List",
-            "dtype": "array[str]",
+            "dtype": "str",
         },
     )
 
     # Source data information
     data_vars["source_data_file_list"] = xr.DataArray(
-        source_data_file_list,
+        ", ".join(source_data_file_list),
         attrs={
             "description": (
-                "List of input DISP granules used to create calibration layer"
+                "Comma-separated list of input DISP granules used to create calibration"
+                " layer"
             ),
             "long_name": "Source Data File List",
-            "dtype": "array[str]",
+            "dtype": "str",
         },
     )
 
@@ -314,11 +317,13 @@ def build_identification_dataset(
     )
 
     data_vars["source_data_satellite_names"] = xr.DataArray(
-        source_data_satellite_names,
+        ", ".join(source_data_satellite_names),
         attrs={
-            "description": "Names of satellites included in input granules",
+            "description": (
+                "Comma-separated names of satellites included in input granules"
+            ),
             "long_name": "Source Data Satellite Names",
-            "dtype": "array[str]",
+            "dtype": "str",
         },
     )
 
