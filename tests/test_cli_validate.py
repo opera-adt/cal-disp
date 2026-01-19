@@ -235,7 +235,7 @@ class TestValidateCLI:
 
     @pytest.mark.parametrize(
         "group",
-        ["main", "model_3d", "all"],
+        ["main", "auxiliary", "all"],
     )
     def test_all_group_options(
         self,
