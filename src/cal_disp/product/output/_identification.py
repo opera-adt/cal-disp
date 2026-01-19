@@ -131,6 +131,7 @@ def build_identification_dataset(
         attrs={
             "description": "OPERA frame identifier",
             "long_name": "Frame ID",
+            "dtype": "int32",
         },
     )
 
@@ -139,6 +140,7 @@ def build_identification_dataset(
         attrs={
             "description": "Product specification version",
             "long_name": "Product Version",
+            "dtype": "str",
         },
     )
 
@@ -147,6 +149,7 @@ def build_identification_dataset(
         attrs={
             "description": "Track number",
             "long_name": "Track Number",
+            "dtype": "int32",
         },
     )
 
@@ -155,6 +158,7 @@ def build_identification_dataset(
         attrs={
             "description": "Absolute orbit number",
             "long_name": "Absolute Orbit Number",
+            "dtype": "int32",
         },
     )
 
@@ -164,6 +168,7 @@ def build_identification_dataset(
             "description": "Orbit direction: ascending or descending",
             "long_name": "Orbit Pass Direction",
             "valid_values": "ascending, descending",
+            "dtype": "str",
         },
     )
 
@@ -175,6 +180,8 @@ def build_identification_dataset(
                 "Reference (earlier) acquisition datetime in ISO 8601 format"
             ),
             "long_name": "Reference Datetime",
+            "dtype": "str",
+            "format": "ISO 8601",
         },
     )
 
@@ -183,6 +190,8 @@ def build_identification_dataset(
         attrs={
             "description": "Secondary (later) acquisition datetime in ISO 8601 format",
             "long_name": "Secondary Datetime",
+            "dtype": "str",
+            "format": "ISO 8601",
         },
     )
 
@@ -191,6 +200,8 @@ def build_identification_dataset(
         attrs={
             "description": "UTC datetime of the start of processing for this product",
             "long_name": "Processing Start Datetime",
+            "dtype": "str",
+            "format": "ISO 8601",
         },
     )
 
@@ -200,6 +211,8 @@ def build_identification_dataset(
         attrs={
             "description": "WKT representation of bounding polygon of the image",
             "long_name": "Bounding Polygon",
+            "dtype": "str",
+            "format": "WKT",
         },
     )
 
@@ -210,6 +223,7 @@ def build_identification_dataset(
                 "Opposite corners in UTM coordinates as (west, south, east, north)"
             ),
             "long_name": "Product Bounding Box",
+            "dtype": "str",
         },
     )
 
@@ -218,6 +232,7 @@ def build_identification_dataset(
         attrs={
             "description": "Spacing between adjacent X/Y samples in UTM coordinates",
             "long_name": "Product Sample Spacing",
+            "dtype": "str",
         },
     )
 
@@ -227,6 +242,7 @@ def build_identification_dataset(
         attrs={
             "description": "Name of calibration reference data source",
             "long_name": "Calibration Reference Name",
+            "dtype": "str",
         },
     )
 
@@ -235,6 +251,7 @@ def build_identification_dataset(
         attrs={
             "description": "Version of calibration reference data",
             "long_name": "Calibration Reference Version",
+            "dtype": "str",
         },
     )
 
@@ -244,6 +261,7 @@ def build_identification_dataset(
             "description": "Type of calibration reference data (constant or variable)",
             "long_name": "Calibration Reference Type",
             "valid_values": "constant, variable",
+            "dtype": "str",
         },
     )
 
@@ -252,6 +270,7 @@ def build_identification_dataset(
         attrs={
             "description": "Reference frame of calibration data (e.g., IGS20)",
             "long_name": "Calibration Reference Frame",
+            "dtype": "str",
         },
     )
 
@@ -260,6 +279,7 @@ def build_identification_dataset(
         attrs={
             "description": "List of input UNR latlon and grid points tenv8 files",
             "long_name": "Source Calibration File List",
+            "dtype": "array[str]",
         },
     )
 
@@ -271,6 +291,7 @@ def build_identification_dataset(
                 "List of input DISP granules used to create calibration layer"
             ),
             "long_name": "Source Data File List",
+            "dtype": "array[str]",
         },
     )
 
@@ -279,6 +300,7 @@ def build_identification_dataset(
         attrs={
             "description": "URL or DOI for source data retrieval",
             "long_name": "Source Data Access",
+            "dtype": "str",
         },
     )
 
@@ -287,6 +309,7 @@ def build_identification_dataset(
         attrs={
             "description": "Name of DEM used during input data processing",
             "long_name": "Source Data DEM Name",
+            "dtype": "str",
         },
     )
 
@@ -295,6 +318,7 @@ def build_identification_dataset(
         attrs={
             "description": "Names of satellites included in input granules",
             "long_name": "Source Data Satellite Names",
+            "dtype": "array[str]",
         },
     )
 
@@ -303,6 +327,7 @@ def build_identification_dataset(
         attrs={
             "description": "Imaging geometry of DISP",
             "long_name": "Source Data Imaging Geometry",
+            "dtype": "str",
         },
     )
 
@@ -312,6 +337,7 @@ def build_identification_dataset(
             "description": "Pixel spacing of source geocoded SLC data in x-direction",
             "long_name": "Source Data X Spacing",
             "units": "meters",
+            "dtype": "float64",
         },
     )
 
@@ -321,6 +347,7 @@ def build_identification_dataset(
             "description": "Pixel spacing of source geocoded SLC data in y-direction",
             "long_name": "Source Data Y Spacing",
             "units": "meters",
+            "dtype": "float64",
         },
     )
 
@@ -330,6 +357,7 @@ def build_identification_dataset(
         attrs={
             "description": "Radar acquisition mode for input products",
             "long_name": "Acquisition Mode",
+            "dtype": "str",
         },
     )
 
@@ -338,6 +366,7 @@ def build_identification_dataset(
         attrs={
             "description": "Instrument name",
             "long_name": "Instrument Name",
+            "dtype": "str",
         },
     )
 
@@ -347,6 +376,7 @@ def build_identification_dataset(
             "description": "Look direction: left or right",
             "long_name": "Look Direction",
             "valid_values": "left, right",
+            "dtype": "str",
         },
     )
 
@@ -355,6 +385,7 @@ def build_identification_dataset(
         attrs={
             "description": "Radar polarization of displacement products",
             "long_name": "Product Data Polarization",
+            "dtype": "str",
         },
     )
 
@@ -363,6 +394,7 @@ def build_identification_dataset(
         attrs={
             "description": "Acquired radar frequency band",
             "long_name": "Radar Band",
+            "dtype": "str",
         },
     )
 
@@ -372,6 +404,7 @@ def build_identification_dataset(
         attrs={
             "description": "Product processing facility",
             "long_name": "Processing Facility",
+            "dtype": "str",
         },
     )
 
@@ -380,6 +413,7 @@ def build_identification_dataset(
         attrs={
             "description": "Number of input data granules used during processing",
             "long_name": "Number of Input Granules",
+            "dtype": "int32",
         },
     )
 
@@ -388,6 +422,7 @@ def build_identification_dataset(
         attrs={
             "description": "Number of nodata pixels",
             "long_name": "NoData Pixel Count",
+            "dtype": "int64",
         },
     )
 
@@ -397,6 +432,7 @@ def build_identification_dataset(
         attrs={
             "description": "URL or DOI for product data access",
             "long_name": "Product Data Access",
+            "dtype": "str",
         },
     )
 
@@ -407,6 +443,7 @@ def build_identification_dataset(
                 "URL of static layers product associated with this calibration product"
             ),
             "long_name": "Static Layers Data Access",
+            "dtype": "str",
         },
     )
 
@@ -417,6 +454,7 @@ def build_identification_dataset(
             attrs={
                 "description": "CEOS Analysis Ready Data (CARD) document identifier",
                 "long_name": "CEOS CARD Document Identifier",
+                "dtype": "str",
             },
         )
 
@@ -426,6 +464,7 @@ def build_identification_dataset(
             attrs={
                 "description": "CEOS Analysis Ready Data (CARD) product type name",
                 "long_name": "CEOS CARD Product Type",
+                "dtype": "str",
             },
         )
 

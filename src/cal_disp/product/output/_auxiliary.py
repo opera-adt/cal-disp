@@ -54,6 +54,8 @@ def build_auxiliary_dataset(
                         "long_name": comp.replace("_", " ").title(),
                         "units": "meters",
                         "grid_mapping": "spatial_ref",
+                        "dtype": "float32",
+                        "coordinates": "y x",
                     }
                 )
                 data_vars[comp] = da
@@ -69,6 +71,8 @@ def build_auxiliary_dataset(
                         "long_name": comp.replace("_", " ").title(),
                         "units": "meters",
                         "grid_mapping": "spatial_ref",
+                        "dtype": "float32",
+                        "coordinates": "y x",
                     }
                 )
                 data_vars[comp] = da
@@ -96,6 +100,8 @@ def build_auxiliary_dataset(
             "units": "meters",
             "reference_frame": "ENU (East-North-Up)",
             "resolution": "coarse",
+            "Conventions": "CF-1.8",
+            "title": "Auxiliary 3D Displacement Model",
         }
     )
 

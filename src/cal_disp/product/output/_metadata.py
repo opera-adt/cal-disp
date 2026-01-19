@@ -70,6 +70,8 @@ def build_metadata_dataset(
         attrs={
             "description": "Algorithm parameters in YAML format",
             "long_name": "Algorithm Parameters",
+            "dtype": "str",
+            "format": "YAML",
         },
     )
 
@@ -80,6 +82,7 @@ def build_metadata_dataset(
             "description": "Sensor platform identification string",
             "long_name": "Platform ID",
             "examples": "S1A, S1B, NISAR",
+            "dtype": "str",
         },
     )
 
@@ -89,6 +92,7 @@ def build_metadata_dataset(
         attrs={
             "description": "DISP-S1 or DISP-NI processor version used for source data",
             "long_name": "Source DISP Software Version",
+            "dtype": "str",
         },
     )
 
@@ -98,6 +102,7 @@ def build_metadata_dataset(
         attrs={
             "description": "Version of cal_disp software used to generate product",
             "long_name": "cal_disp Software Version",
+            "dtype": "str",
         },
     )
 
@@ -107,6 +112,7 @@ def build_metadata_dataset(
         attrs={
             "description": "Version of venti software used to generate product",
             "long_name": "Venti Software Version",
+            "dtype": "str",
         },
     )
 
@@ -119,6 +125,7 @@ def build_metadata_dataset(
             ),
             "long_name": "Pixel Coordinate Convention",
             "valid_values": "center, corner",
+            "dtype": "str",
         },
     )
 
@@ -128,6 +135,7 @@ def build_metadata_dataset(
         attrs={
             "description": "Method used to correct for atmospheric phase noise",
             "long_name": "Atmospheric Phase Correction",
+            "dtype": "str",
         },
     )
 
@@ -139,6 +147,7 @@ def build_metadata_dataset(
                 "ascending/descending frames"
             ),
             "long_name": "Gridding Convention",
+            "dtype": "str",
         },
     )
 
@@ -148,6 +157,7 @@ def build_metadata_dataset(
             "description": "Projection of the displacement image",
             "long_name": "Product Measurement Projection",
             "valid_values": "line_of_sight, horizontal, vertical",
+            "dtype": "str",
         },
     )
 
@@ -156,6 +166,7 @@ def build_metadata_dataset(
         attrs={
             "description": "Method used to correct for ionospheric phase noise",
             "long_name": "Ionospheric Phase Correction",
+            "dtype": "str",
         },
     )
 
@@ -168,6 +179,7 @@ def build_metadata_dataset(
             ),
             "long_name": "Noise Removal Flag",
             "valid_values": "Y, N",
+            "dtype": "str",
         },
     )
 
@@ -178,6 +190,8 @@ def build_metadata_dataset(
             attrs={
                 "description": "DOI for algorithm theoretical basis document",
                 "long_name": "Algorithm Theoretical Basis Document DOI",
+                "dtype": "str",
+                "format": "DOI",
             },
         )
 
@@ -187,6 +201,8 @@ def build_metadata_dataset(
             attrs={
                 "description": "DOI for product landing page",
                 "long_name": "Product Landing Page DOI",
+                "dtype": "str",
+                "format": "DOI",
             },
         )
 
@@ -196,6 +212,7 @@ def build_metadata_dataset(
             attrs={
                 "description": "Document identifier for Product Specification",
                 "long_name": "Product Specification Document ID",
+                "dtype": "str",
             },
         )
 
@@ -206,6 +223,8 @@ def build_metadata_dataset(
             attrs={
                 "description": "Full PGE runconfig YAML file used to generate product",
                 "long_name": "PGE Run Configuration",
+                "dtype": "str",
+                "format": "YAML",
             },
         )
 

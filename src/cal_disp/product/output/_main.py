@@ -56,6 +56,8 @@ def build_main_dataset(
             "long_name": "Calibration for DISP",
             "units": "meters",
             "grid_mapping": "spatial_ref",
+            "dtype": "float32",
+            "coordinates": "time y x",
         }
     )
     data_vars["calibration"] = calibration
@@ -69,6 +71,8 @@ def build_main_dataset(
                 "long_name": "DISP Calibration Uncertainty",
                 "units": "meters",
                 "grid_mapping": "spatial_ref",
+                "dtype": "float32",
+                "coordinates": "time y x",
             }
         )
         data_vars["calibration_std"] = calibration_std
@@ -85,11 +89,11 @@ def build_main_dataset(
         if crs_wkt:
             ds = ds.rio.write_crs(crs_wkt)
 
-    # Add global attributes
+    # Add global attributes with type information
     base_attrs = {
         "product_type": f"OPERA_L4_CAL-DISP-{sensor}",
         "sensor": sensor,
-        "frame_id": disp_product.frame_id,
+        "frame_id": str(disp_product.frame_id),
         "mode": disp_product.mode,
         "polarization": disp_product.polarization,
         "reference_datetime": disp_product.reference_date.isoformat(),
@@ -102,12 +106,17 @@ def build_main_dataset(
         ),
         "source_product": disp_product.filename,
         "usage": (
-            "Subtract calibration layer from DISP displacement to obtain"
-            " calibrated displacement"
+            "Subtract calibration layer from DISP displacement to obtain "
+            "calibrated displacement"
         ),
+        "Conventions": "CF-1.8",
+        "title": f"OPERA L4 CAL-DISP-{sensor} Calibration Product",
+        "institution": "NASA JPL",
+        "contact": "operaops@jpl.nasa.gov",
     }
 
     ds.attrs.update(base_attrs)
+
     if metadata:
         ds.attrs.update(metadata)
 
