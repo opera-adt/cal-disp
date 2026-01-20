@@ -21,7 +21,7 @@ cal_disp_workflow:
     # REQUIRED: Type of UNR gridded data [constant|variable].
     #   Type: string.
     unr_grid_type: constant
-    # No description..
+    # No description.
     #   Type: boolean.
     skip_file_checks: true
   # Dynamic ancillary files configuration..

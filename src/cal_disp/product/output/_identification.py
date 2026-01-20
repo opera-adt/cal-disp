@@ -339,7 +339,7 @@ def build_identification_dataset(
     data_vars["source_data_x_spacing"] = xr.DataArray(
         source_data_x_spacing,
         attrs={
-            "description": "Pixel spacing of source geocoded SLC data in x-direction",
+            "description": "Pixel spacing of source geocoded DISP data in x-direction",
             "long_name": "Source Data X Spacing",
             "units": "meters",
             "dtype": "float64",
@@ -349,7 +349,7 @@ def build_identification_dataset(
     data_vars["source_data_y_spacing"] = xr.DataArray(
         source_data_y_spacing,
         attrs={
-            "description": "Pixel spacing of source geocoded SLC data in y-direction",
+            "description": "Pixel spacing of source geocoded DISP data in y-direction",
             "long_name": "Source Data Y Spacing",
             "units": "meters",
             "dtype": "float64",

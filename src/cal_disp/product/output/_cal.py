@@ -301,10 +301,7 @@ class CalProduct:
             calibration=calibration,
             calibration_std=calibration_std,
             spatial_ref=spatial_ref,
-            disp_product=disp_product,
             sensor=sensor,
-            version=version,
-            production_date=production_date,
             metadata=global_metadata,
         )
         ds_main.to_netcdf(output_file, engine="h5netcdf")
