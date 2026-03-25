@@ -5,6 +5,7 @@ from pathlib import Path
 from cal_disp._log import get_max_memory_usage, log_runtime
 from cal_disp._version import __version__
 from cal_disp.browse_image import make_browse_image_from_nc
+from cal_disp.config._algorithm import AlgorithmParameters
 from cal_disp.config.workflow import CalibrationWorkflow
 from cal_disp.workflow import run_calibration
 
@@ -53,12 +54,18 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
         logger.error(f"Missing input files: {', '.join(missing)}")
         raise SystemExit(1)
 
+    # Load algorithm parameters
+    algo_params = AlgorithmParameters.from_yaml(
+        runconfig.dynamic_ancillary_options.algorithm_parameters_file
+    )
+
     # Run calibration
     output_file = run_calibration(
         disp_file=Path(runconfig.input_options.disp_file),
         unr_grid_latlon_file=Path(runconfig.input_options.unr_grid_latlon_file),
         unr_timeseries_dir=Path(runconfig.input_options.unr_timeseries_dir),
         output_dir=runconfig.output_directory,
+        algorithm_parameters=algo_params,
         dem_file=Path(runconfig.dynamic_ancillary_options.dem_file),
         los_file=Path(runconfig.dynamic_ancillary_options.los_file),
         block_shape=runconfig.worker_settings.block_shape,
