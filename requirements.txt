@@ -16,4 +16,4 @@ ruamel.yaml
 click
 matplotlib
 opera-utils
-venti @ git+file:///u/aurora-r0/cabrera/opera_vlm/software/Venti
+venti @ git+https://github.com/opera-adt/Venti@cal_workflow
