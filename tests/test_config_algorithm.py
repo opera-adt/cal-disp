@@ -9,119 +9,97 @@ import yaml  # type: ignore[import-untyped]
 
 from cal_disp.config._algorithm import (
     AlgorithmParameters,
-    CalibrationMethod,
     CalibrationOptions,
-    SavitskyGoleyOptions,
-    UnwrapCorrection,
+    FFTFilterOptions,
+    SavitzkyGolayOptions,
 )
 
 
-class TestCalibrationMethod:
-    """Tests for CalibrationMethod enum."""
+class TestSavitzkyGolayOptions:
+    """Tests for Savitzky-Golay filter options."""
 
-    def test_has_expected_values(self):
-        """Should have all expected calibration methods."""
-        assert CalibrationMethod.GAUSSIAN_FFT == "gaussian_fft"
-        assert CalibrationMethod.HANNING_FFT == "hanning_fft"
-        assert CalibrationMethod.SAVITSKY_GOLEY == "savitsky_goley"
+    def test_defaults(self):
+        """Should have expected default values."""
+        options = SavitzkyGolayOptions()
 
-    def test_enum_membership(self):
-        """Should validate enum membership."""
-        assert "gaussian_fft" in [m.value for m in CalibrationMethod]
-        assert "invalid" not in [m.value for m in CalibrationMethod]
+        assert options.window_length == 51
+        assert options.polyorder == 3
+        assert options.deriv == 0
 
+    def test_valid_window_length(self):
+        """Should accept valid window lengths."""
+        options = SavitzkyGolayOptions(window_length=101)
 
-class TestUnwrapCorrection:
-    """Tests for UnwrapCorrection configuration."""
+        assert options.window_length == 101
 
-    def test_default_value(self):
-        """Should default to True."""
-        config = UnwrapCorrection()
-        assert config.run_unwrap_correction is True
+    def test_rejects_window_length_below_3(self):
+        """Should reject window lengths below 3."""
+        with pytest.raises(ValueError, match="greater than or equal to 3"):
+            SavitzkyGolayOptions(window_length=2)
 
-    def test_explicit_false(self):
-        """Should accept explicit False."""
-        config = UnwrapCorrection(run_unwrap_correction=False)
-        assert config.run_unwrap_correction is False
-
-    def test_yaml_serialization(self, tmp_path: Path):
-        """Should serialize to YAML."""
-        config = UnwrapCorrection(run_unwrap_correction=False)
-        yaml_file = tmp_path / "unwrap.yaml"
-
-        config.to_yaml(yaml_file)
-
-        with open(yaml_file) as f:
-            data = yaml.safe_load(f)
-        assert data["run_unwrap_correction"] is False
-
-    def test_yaml_deserialization(self, tmp_path: Path):
-        """Should deserialize from YAML."""
-        yaml_file = tmp_path / "unwrap.yaml"
-        yaml_file.write_text("run_unwrap_correction: false\n")
-
-        config = UnwrapCorrection.from_yaml(yaml_file)
-        assert config.run_unwrap_correction is False
-
-
-class TestSavitskyGoleyOptions:
-    """Tests for Savitsky-Golay filter options."""
-
-    def test_all_none_by_default(self):
-        """All fields should default to None."""
-        options = SavitskyGoleyOptions()
-
-        assert options.window_x_size is None
-        assert options.window_y_size is None
-        assert options.window_overlap_x_size is None
-        assert options.window_overlap_y_size is None
-        assert options.window_extend_x_size is None
-        assert options.window_extend_y_size is None
-
-    def test_valid_window_sizes(self):
-        """Should accept positive window sizes."""
-        options = SavitskyGoleyOptions(
-            window_x_size=100,
-            window_y_size=100,
-        )
-
-        assert options.window_x_size == 100
-        assert options.window_y_size == 100
-
-    def test_rejects_zero_window_size(self):
-        """Should reject zero window sizes."""
-        with pytest.raises(ValueError, match="greater than or equal to 1"):
-            SavitskyGoleyOptions(window_x_size=0)
-
-    def test_rejects_negative_window_size(self):
-        """Should reject negative window sizes."""
-        with pytest.raises(ValueError, match="greater than or equal to 1"):
-            SavitskyGoleyOptions(window_y_size=-1)
-
-    def test_rejects_negative_overlap(self):
-        """Should reject negative overlap."""
+    def test_rejects_negative_polyorder(self):
+        """Should reject negative polynomial order."""
         with pytest.raises(ValueError, match="greater than or equal to 0"):
-            SavitskyGoleyOptions(window_overlap_x_size=-1)
+            SavitzkyGolayOptions(polyorder=-1)
 
-    def test_rejects_negative_extend(self):
-        """Should reject negative extend."""
+    def test_rejects_negative_deriv(self):
+        """Should reject negative derivative order."""
         with pytest.raises(ValueError, match="greater than or equal to 0"):
-            SavitskyGoleyOptions(window_extend_y_size=-5)
+            SavitzkyGolayOptions(deriv=-1)
 
     def test_all_fields_specified(self):
         """Should accept all fields when specified."""
-        options = SavitskyGoleyOptions(
-            window_x_size=100,
-            window_y_size=100,
-            window_overlap_x_size=50,
-            window_overlap_y_size=50,
-            window_extend_x_size=10,
-            window_extend_y_size=10,
+        options = SavitzkyGolayOptions(window_length=99, polyorder=5, deriv=1)
+
+        assert options.window_length == 99
+        assert options.polyorder == 5
+        assert options.deriv == 1
+
+
+class TestFFTFilterOptions:
+    """Tests for FFT filter options."""
+
+    def test_defaults(self):
+        """Should have expected default values."""
+        options = FFTFilterOptions()
+
+        assert options.gaussian_sigma == pytest.approx(0.1)
+        assert options.butterworth_order == 4
+        assert options.spatial_domain is False
+        assert options.taper_edges is True
+        assert options.taper_width == pytest.approx(0.05)
+
+    def test_rejects_non_positive_sigma(self):
+        """Should reject non-positive gaussian_sigma."""
+        with pytest.raises(ValueError):
+            FFTFilterOptions(gaussian_sigma=0)
+
+    def test_rejects_butterworth_order_below_1(self):
+        """Should reject butterworth_order below 1."""
+        with pytest.raises(ValueError, match="greater than or equal to 1"):
+            FFTFilterOptions(butterworth_order=0)
+
+    def test_taper_width_bounds(self):
+        """Should reject taper_width outside [0, 0.5]."""
+        with pytest.raises(ValueError):
+            FFTFilterOptions(taper_width=0.6)
+        with pytest.raises(ValueError):
+            FFTFilterOptions(taper_width=-0.1)
+
+    def test_custom_values(self):
+        """Should accept custom values."""
+        options = FFTFilterOptions(
+            gaussian_sigma=0.5,
+            butterworth_order=6,
+            spatial_domain=True,
+            taper_edges=False,
+            taper_width=0.1,
         )
 
-        assert options.window_x_size == 100
-        assert options.window_overlap_x_size == 50
-        assert options.window_extend_x_size == 10
+        assert options.gaussian_sigma == pytest.approx(0.5)
+        assert options.butterworth_order == 6
+        assert options.spatial_domain is True
+        assert options.taper_edges is False
 
 
 class TestCalibrationOptions:
@@ -131,38 +109,92 @@ class TestCalibrationOptions:
         """Should have expected default values."""
         options = CalibrationOptions()
 
-        assert options.cal_method == CalibrationMethod.SAVITSKY_GOLEY
-        assert options.run_interpolation is True
-        assert options.run_downsample is True
-        assert options.downsample_factor == 10
+        assert options.grid_type == "constant"
+        assert options.reference_frame == "IGS20"
+        assert options.starting_year == pytest.approx(2014.0)
+        assert options.unwrap_error_correction is True
+        assert options.window_size_meters == pytest.approx(30000.0)
+        assert options.posting_meters == pytest.approx(30.0)
+        assert options.downsample_factor == 6
+        assert options.downsample_method == "mean"
+        assert options.downsample_weighted is False
+        assert options.calibration_surface_smoothing_method == "gaussian"
+        assert options.calibration_surface_smoothing_sigma is None
 
-    def test_custom_method(self):
-        """Should accept different calibration methods."""
-        options = CalibrationOptions(cal_method=CalibrationMethod.GAUSSIAN_FFT)
+    def test_window_size_pixels_computed(self):
+        """Should compute window_size_pixels from metres and posting."""
+        options = CalibrationOptions(window_size_meters=30000.0, posting_meters=30.0)
 
-        assert options.cal_method == CalibrationMethod.GAUSSIAN_FFT
+        assert options.window_size_pixels == 1000
 
-    def test_disable_interpolation(self):
-        """Should allow disabling interpolation."""
-        options = CalibrationOptions(run_interpolation=False)
+    def test_custom_grid_type(self):
+        """Should accept variable grid type."""
+        options = CalibrationOptions(grid_type="variable")
 
-        assert options.run_interpolation is False
+        assert options.grid_type == "variable"
 
-    def test_custom_downsample_factor(self):
-        """Should accept custom downsample factor."""
-        options = CalibrationOptions(downsample_factor=5)
+    def test_rejects_invalid_grid_type(self):
+        """Should reject unknown grid types."""
+        with pytest.raises(ValueError):
+            CalibrationOptions(grid_type="unknown")
 
-        assert options.downsample_factor == 5
+    def test_rejects_invalid_reference_frame(self):
+        """Should reject unknown reference frames."""
+        with pytest.raises(ValueError):
+            CalibrationOptions(reference_frame="WGS84")
 
-    def test_rejects_zero_downsample(self):
+    def test_rejects_zero_downsample_factor(self):
         """Should reject zero downsample factor."""
         with pytest.raises(ValueError, match="greater than or equal to 1"):
             CalibrationOptions(downsample_factor=0)
 
-    def test_rejects_negative_downsample(self):
+    def test_rejects_negative_downsample_factor(self):
         """Should reject negative downsample factor."""
         with pytest.raises(ValueError, match="greater than or equal to 1"):
             CalibrationOptions(downsample_factor=-1)
+
+    def test_rejects_invalid_smoothing_method(self):
+        """Should reject unknown smoothing methods."""
+        with pytest.raises(ValueError):
+            CalibrationOptions(calibration_surface_smoothing_method="cubic")
+
+    def test_all_smoothing_methods(self):
+        """Should accept all valid smoothing methods."""
+        for method in ("gaussian", "gaussian_fft", "hanning_fft", "savitzky_golay"):
+            options = CalibrationOptions(calibration_surface_smoothing_method=method)
+            assert options.calibration_surface_smoothing_method == method
+
+    def test_disable_interpolation(self):
+        """Should allow setting sigma to zero."""
+        options = CalibrationOptions(calibration_surface_smoothing_sigma=0)
+
+        assert options.calibration_surface_smoothing_sigma == 0
+
+    def test_nested_savitzky_golay(self):
+        """Should accept nested SavitzkyGolayOptions."""
+        options = CalibrationOptions(
+            savitzky_golay=SavitzkyGolayOptions(window_length=101, polyorder=5)
+        )
+
+        assert options.savitzky_golay.window_length == 101
+
+    def test_nested_fft_filter(self):
+        """Should accept nested FFTFilterOptions."""
+        options = CalibrationOptions(
+            fft_filter=FFTFilterOptions(gaussian_sigma=0.5)
+        )
+
+        assert options.fft_filter.gaussian_sigma == pytest.approx(0.5)
+
+    def test_rejects_non_positive_window_size(self):
+        """Should reject non-positive window_size_meters."""
+        with pytest.raises(ValueError):
+            CalibrationOptions(window_size_meters=0)
+
+    def test_rejects_non_positive_posting(self):
+        """Should reject non-positive posting_meters."""
+        with pytest.raises(ValueError):
+            CalibrationOptions(posting_meters=0)
 
 
 class TestAlgorithmParameters:
@@ -172,90 +204,57 @@ class TestAlgorithmParameters:
         """Should create with all default values."""
         params = AlgorithmParameters()
 
-        assert params.unwrap_correction.run_unwrap_correction is True
-        assert params.calibration_options.cal_method == CalibrationMethod.SAVITSKY_GOLEY
-        assert params.savitsky_goley_options.window_x_size is None
+        assert isinstance(params.calibration_options, CalibrationOptions)
+        assert params.calibration_options.downsample_factor == 6
 
     def test_create_default_classmethod(self):
         """Should create defaults via classmethod."""
         params = AlgorithmParameters.create_default()
 
         assert isinstance(params, AlgorithmParameters)
-        assert params.calibration_options.run_interpolation is True
+        assert params.calibration_options.unwrap_error_correction is True
 
-    def test_create_example_classmethod(self):
-        """Should create example with all fields specified."""
-        params = AlgorithmParameters.create_example()
-
-        assert params.unwrap_correction.run_unwrap_correction is True
-        assert params.calibration_options.downsample_factor == 10
-        assert params.savitsky_goley_options.window_x_size == 100
-        assert params.savitsky_goley_options.window_y_size == 100
-        assert params.savitsky_goley_options.window_overlap_x_size == 50
-
-    def test_custom_configuration(self):
+    def test_custom_calibration_options(self):
         """Should accept custom nested configuration."""
         params = AlgorithmParameters(
-            unwrap_correction=UnwrapCorrection(run_unwrap_correction=False),
             calibration_options=CalibrationOptions(
-                cal_method=CalibrationMethod.HANNING_FFT,
-                downsample_factor=5,
-            ),
-            savitsky_goley_options=SavitskyGoleyOptions(
-                window_x_size=200,
-                window_y_size=200,
-            ),
+                grid_type="variable",
+                downsample_factor=3,
+            )
         )
 
-        assert params.unwrap_correction.run_unwrap_correction is False
-        assert params.calibration_options.cal_method == CalibrationMethod.HANNING_FFT
-        assert params.savitsky_goley_options.window_x_size == 200
+        assert params.calibration_options.grid_type == "variable"
+        assert params.calibration_options.downsample_factor == 3
 
     def test_yaml_round_trip(self, tmp_path: Path):
         """Should serialize and deserialize via YAML."""
-        params = AlgorithmParameters.create_example()
+        params = AlgorithmParameters.create_default()
         yaml_file = tmp_path / "algorithm_params.yaml"
 
-        # Save
         params.to_yaml(yaml_file)
         assert yaml_file.exists()
 
-        # Load
         loaded = AlgorithmParameters.from_yaml(yaml_file)
 
         assert (
-            loaded.calibration_options.cal_method
-            == params.calibration_options.cal_method
+            loaded.calibration_options.calibration_surface_smoothing_method
+            == params.calibration_options.calibration_surface_smoothing_method
         )
         assert (
-            loaded.savitsky_goley_options.window_x_size
-            == params.savitsky_goley_options.window_x_size
+            loaded.calibration_options.downsample_factor
+            == params.calibration_options.downsample_factor
         )
 
-    def test_partial_savitsky_options(self):
-        """Should allow partial Savitsky-Golay options."""
-        params = AlgorithmParameters(
-            savitsky_goley_options=SavitskyGoleyOptions(
-                window_x_size=100,
-                # Leave other fields as None
-            )
-        )
+    def test_yaml_content_valid(self, tmp_path: Path):
+        """Should produce valid YAML output."""
+        params = AlgorithmParameters()
+        yaml_file = tmp_path / "params.yaml"
 
-        assert params.savitsky_goley_options.window_x_size == 100
-        assert params.savitsky_goley_options.window_y_size is None
-        assert params.savitsky_goley_options.window_overlap_x_size is None
+        params.to_yaml(yaml_file)
 
-    def test_nested_validation_propagates(self):
-        """Should propagate validation errors from nested models."""
-        with pytest.raises(ValueError):
-            AlgorithmParameters(
-                calibration_options=CalibrationOptions(downsample_factor=-1)
-            )
-
-    def test_forbids_extra_fields(self):
-        """Should forbid extra fields not in schema."""
-        with pytest.raises(ValueError, match="extra"):
-            AlgorithmParameters(invalid_field="test")
+        with open(yaml_file) as f:
+            data = yaml.safe_load(f)
+        assert "calibration_options" in data
 
     def test_yaml_with_comments(self, tmp_path: Path):
         """Should generate YAML with field descriptions."""
@@ -265,8 +264,14 @@ class TestAlgorithmParameters:
         params.to_yaml(yaml_file, with_comments=True)
 
         content = yaml_file.read_text()
-        # Comments should exist
         assert "#" in content
+
+    def test_nested_validation_propagates(self):
+        """Should propagate validation errors from nested models."""
+        with pytest.raises(ValueError):
+            AlgorithmParameters(
+                calibration_options=CalibrationOptions(downsample_factor=-1)
+            )
 
     def test_modifying_after_creation(self):
         """Should allow modifying fields after creation."""
@@ -275,19 +280,3 @@ class TestAlgorithmParameters:
         params.calibration_options.downsample_factor = 20
 
         assert params.calibration_options.downsample_factor == 20
-
-    @pytest.mark.parametrize(
-        "method",
-        [
-            CalibrationMethod.GAUSSIAN_FFT,
-            CalibrationMethod.HANNING_FFT,
-            CalibrationMethod.SAVITSKY_GOLEY,
-        ],
-    )
-    def test_all_calibration_methods(self, method: CalibrationMethod):
-        """Should work with all calibration methods."""
-        params = AlgorithmParameters(
-            calibration_options=CalibrationOptions(cal_method=method)
-        )
-
-        assert params.calibration_options.cal_method == method
