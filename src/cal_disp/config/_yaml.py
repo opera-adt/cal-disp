@@ -74,6 +74,21 @@ def _get_placeholder_value(annotation):
         return None
 
 
+def _computed_fields_exclude(model: BaseModel) -> dict:
+    """Build a nested exclude dict that strips computed fields at every level."""
+    exclude: dict = {}
+    cls = type(model)
+    for field_name in cls.model_computed_fields:
+        exclude[field_name] = True
+    for field_name in cls.model_fields:
+        value = getattr(model, field_name, None)
+        if isinstance(value, BaseModel):
+            nested = _computed_fields_exclude(value)
+            if nested:
+                exclude[field_name] = nested
+    return exclude
+
+
 class YamlModel(BaseModel):
     """Pydantic model that can be exported to yaml."""
 
@@ -186,7 +201,7 @@ class YamlModel(BaseModel):
             by_alias=by_alias,
             exclude_unset=False,
             exclude_none=False,
-            exclude=set(self.model_computed_fields.keys()),
+            exclude=_computed_fields_exclude(self),
         )
         data = json.loads(json_data)
 
