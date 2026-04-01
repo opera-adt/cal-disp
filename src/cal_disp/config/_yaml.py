@@ -180,11 +180,13 @@ class YamlModel(BaseModel):
         y = YAML()
         ss = StringIO()
 
-        # Get the flat dictionary
+        # Get the flat dictionary, excluding computed fields so they aren't
+        # written to YAML (they would be rejected as extra inputs on reload).
         json_data = self.model_dump_json(
             by_alias=by_alias,
             exclude_unset=False,
             exclude_none=False,
+            exclude=set(self.model_computed_fields.keys()),
         )
         data = json.loads(json_data)
 
