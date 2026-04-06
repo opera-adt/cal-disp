@@ -57,7 +57,7 @@ class TestStaticLayerDataAccess:
         bands = layer.read_bands()
 
         assert len(bands) == 3
-        assert all(b.shape == (100, 100) for b in bands)
+        assert all(b.shape == (200, 200) for b in bands)
 
     def test_num_bands_property(self, sample_static_los: Path):
         """Should report correct band count."""
@@ -89,7 +89,7 @@ class TestStaticLayerDataAccess:
         layer = StaticLayer.from_path(sample_static_los)
         inc_angle = layer.compute_incidence_angle()
 
-        assert inc_angle.shape == (100, 100)
+        assert inc_angle.shape == (200, 200)
         assert np.all((inc_angle >= 0) & (inc_angle <= 90))
 
     def test_compute_incidence_angle_wrong_layer(self, sample_static_dem: Path):
