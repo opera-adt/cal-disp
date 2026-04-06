@@ -56,23 +56,40 @@ def sample_disp_product(tmp_path: Path) -> Path:
     """Create a mock DISP-S1 product file."""
     ny, nx = 100, 100
 
+    # UTM zone 11N coordinates (southern California frame 8882 area)
+    x_origin, y_origin, spacing = 200000.0, 3870000.0, 30.0
+    x_coords = np.arange(nx) * spacing + x_origin
+    y_coords = np.arange(ny) * (-spacing) + y_origin
+
+    spatial_ref = xr.DataArray(
+        0,
+        attrs={
+            "crs_wkt": (
+                'PROJCS["WGS 84 / UTM zone 11N",'
+                'GEOGCS["WGS 84",DATUM["WGS_1984",'
+                'SPHEROID["WGS 84",6378137,298.257223563]],'
+                'PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],'
+                'PROJECTION["Transverse_Mercator"],'
+                'PARAMETER["latitude_of_origin",0],'
+                'PARAMETER["central_meridian",-117],'
+                'PARAMETER["scale_factor",0.9996],'
+                'PARAMETER["false_easting",500000],'
+                'PARAMETER["false_northing",0],UNIT["metre",1]]'
+            ),
+            "GeoTransform": f"{x_origin} {spacing} 0.0 {y_origin} 0.0 -{spacing}",
+        },
+    )
+
     ds = xr.Dataset(
         {
             "displacement": (["y", "x"], np.random.randn(ny, nx)),
             "temporal_coherence": (["y", "x"], np.random.uniform(0.3, 0.9, (ny, nx))),
             "conncomp": (["y", "x"], np.ones((ny, nx), dtype=np.uint16)),
-            "latitude": (
-                ["y", "x"],
-                np.linspace(34.0, 35.0, ny)[:, None] * np.ones((ny, nx)),
-            ),
-            "longitude": (
-                ["y", "x"],
-                np.linspace(-118.0, -117.0, nx)[None, :] * np.ones((ny, nx)),
-            ),
+            "spatial_ref": spatial_ref,
         },
         coords={
-            "y": np.arange(ny),
-            "x": np.arange(nx),
+            "y": y_coords,
+            "x": x_coords,
             "time": [datetime(2022, 7, 22, 0, 26, 57)],
         },
         attrs={
