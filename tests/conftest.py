@@ -402,23 +402,10 @@ def sample_unr_data(tmp_path: Path) -> tuple[Path, Path]:
 @pytest.fixture
 def sample_algorithm_params(tmp_path: Path) -> Path:
     """Create sample algorithm parameters YAML file."""
-    params_content = """
-algorithm_parameters:
-  grid_search:
-    enabled: true
-    min_stations: 3
-    max_distance_km: 100
+    from cal_disp.config._algorithm import AlgorithmParameters
 
-  robust_estimation:
-    method: "huber"
-    outlier_threshold: 3.0
-
-  quality_control:
-    min_coherence: 0.3
-    max_phase_std: 2.0
-"""
     params_file = tmp_path / "algorithm_params.yaml"
-    params_file.write_text(params_content)
+    AlgorithmParameters().to_yaml(params_file, with_comments=False)
     return params_file
 
 
