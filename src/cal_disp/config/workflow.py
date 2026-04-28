@@ -186,7 +186,9 @@ class CalibrationWorkflow(YamlModel):
             self.log_file.parent.mkdir(parents=True, exist_ok=exist_ok)
 
     def setup_logging(
-        self, level: int = 20, format_string: Optional[str] = None  # logging.INFO
+        self,
+        level: int = 20,
+        format_string: Optional[str] = None,  # logging.INFO
     ):
         """Set up logging configuration for the workflow.
 

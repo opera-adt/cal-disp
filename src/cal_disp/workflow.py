@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _date_to_decimal_year(dt: datetime) -> float:
     """Convert a datetime to a decimal year (e.g. 2022.55)."""
     year = dt.year
@@ -49,7 +50,8 @@ def _load_los_bands(
     with rasterio.open(los_file) as src:
         if src.count < 3:
             raise ValueError(
-                f"LOS file must have ≥3 bands (east, north, up), got {src.count}: {los_file}"
+                "LOS file must have ≥3 bands (east, north, up),"
+                f" got {src.count}: {los_file}"
             )
         los_east = src.read(1).astype(np.float32)
         los_north = src.read(2).astype(np.float32)
@@ -159,6 +161,7 @@ def _compute_gnss_los(
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
 def run_calibration(
     disp_file: Path,
     unr_grid_latlon_file: Path,
@@ -180,7 +183,7 @@ def run_calibration(
     # Product metadata
     platform_id: str = "S1A",
     absolute_orbit_number: int = 0,  # TODO: extract from DISP identification group
-    track_number: int = 0,           # TODO: extract from DISP identification group
+    track_number: int = 0,  # TODO: extract from DISP identification group
     instrument_name: str = "C-SAR",
     look_direction: str = "right",
     radar_band: str = "C",
@@ -358,15 +361,18 @@ def run_calibration(
     # Build valid-pixel mask
     mask = ~np.isnan(disp_2d)
     if "recommended_mask" in ds_disp:
+        # recommended_mask convention: 1 = valid/recommended, 0 = invalid
         mask &= ds_disp.recommended_mask.values.astype(bool)
     if "water_mask" in ds_disp:
-        mask &= ~ds_disp.water_mask.values.astype(bool)
+        # water_mask convention: 1 = land/valid, 0 = water/invalid
+        mask &= ds_disp.water_mask.values.astype(bool)
 
     disp_masked = np.where(mask, disp_2d, np.nan)
 
     # Optional unwrap-error correction
     if cal.unwrap_error_correction:
         from venti.unwrap import correct_region_offset
+
         _WAVELENGTH_MM = 0.0555 / 2 * 1000  # S1 C-band half-wavelength
         logger.info("Applying unwrap-error correction...")
         disp_masked = correct_region_offset(
@@ -390,16 +396,22 @@ def run_calibration(
         if cal.downsample_weighted:
             if "temporal_coherence" in ds_disp:
                 weights = ds_disp.temporal_coherence.values.astype(np.float32)
-                logger.info("Downsampling weighted by temporal coherence (factor=%d)", ds_factor)
+                logger.info(
+                    "Downsampling weighted by temporal coherence (factor=%d)", ds_factor
+                )
             else:
                 logger.warning(
                     "downsample_weighted=True but temporal_coherence not found in DISP "
                     "product; falling back to unweighted downsampling"
                 )
         else:
-            logger.info("Downsampling by factor %d (%s)...", ds_factor, cal.downsample_method)
+            logger.info(
+                "Downsampling by factor %d (%s)...", ds_factor, cal.downsample_method
+            )
 
-        disp_ds = downsample_array(disp_masked, ds_factor, method=cal.downsample_method, weights=weights)
+        disp_ds = downsample_array(
+            disp_masked, ds_factor, method=cal.downsample_method, weights=weights
+        )
         gnss_ds = downsample_array(gnss_los, ds_factor, method=cal.downsample_method)
         win_x = max(1, win_px // ds_factor)
         win_y = max(1, win_px // ds_factor)
@@ -411,7 +423,9 @@ def run_calibration(
 
     logger.info(
         "Fitting calibration surface (window=%d×%d px, overlap=50%%, smoothing=%s)...",
-        win_x, win_y, cal.calibration_surface_smoothing_method,
+        win_x,
+        win_y,
+        cal.calibration_surface_smoothing_method,
     )
     cal_surface = spatial_processor.fit_windowed_surface(
         insar_data=disp_ds,

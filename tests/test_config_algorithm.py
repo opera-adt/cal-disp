@@ -180,9 +180,7 @@ class TestCalibrationOptions:
 
     def test_nested_fft_filter(self):
         """Should accept nested FFTFilterOptions."""
-        options = CalibrationOptions(
-            fft_filter=FFTFilterOptions(gaussian_sigma=0.5)
-        )
+        options = CalibrationOptions(fft_filter=FFTFilterOptions(gaussian_sigma=0.5))
 
         assert options.fft_filter.gaussian_sigma == pytest.approx(0.5)
 

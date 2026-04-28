@@ -18,7 +18,30 @@ license = { file = "LICENSE.txt" }
 # see section: setuptools_scm
 # https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html#dynamic-metadata
 # dependencies will be read from text files
-dynamic = ["version", "dependencies", "optional-dependencies"]
+dynamic = ["version", "optional-dependencies"]
+dependencies = [
+  "numpy",
+  "scipy",
+  "xarray",
+  "pandas",
+  "pydantic>=2.0",
+  "rasterio",
+  "rioxarray",
+  "geopandas",
+  "pyproj>=3.3",
+  "shapely",
+  "h5py",
+  "h5netcdf",
+  "requests",
+  "tqdm",
+  "ruamel.yaml",
+  "click",
+  "matplotlib",
+  "opera-utils",
+  "venti @ git+https://github.com/opera-adt/Venti@cal_workflow",
+  "dem-stitcher",
+  "gdal",
+]
 
 [project.urls]
 Homepage = "https://github.com/opera-adt/cal-disp1"
@@ -29,8 +52,6 @@ Homepage = "https://github.com/opera-adt/cal-disp1"
 cal-disp = "cal_disp.cli:cli_app"
 
 [tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
-
 # Optional dependencies loaded from files
 [tool.setuptools.dynamic.optional-dependencies.docs]
 file = ["requirements/docs.txt"]

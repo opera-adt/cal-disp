@@ -116,7 +116,8 @@ class CalibrationOptions(YamlModel):
         resolution after fitting.
     downsample_method : {'mean', 'median'}
         Aggregation method used when downsampling.
-    calibration_surface_smoothing_method : {'gaussian', 'gaussian_fft', 'hanning_fft', 'savitzky_golay'}
+    calibration_surface_smoothing_method : {'gaussian', 'gaussian_fft',
+        'hanning_fft', 'savitzky_golay'}
         Post-assembly low-pass filter applied to the stitched calibration
         surface to suppress window-boundary artefacts.
     calibration_surface_smoothing_sigma : float or None
