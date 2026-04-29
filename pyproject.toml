@@ -39,8 +39,6 @@ dependencies = [
   "matplotlib",
   "opera-utils",
   "venti @ git+https://github.com/opera-adt/Venti@cal_workflow",
-  "dem-stitcher",
-  "gdal",
 ]
 
 [project.urls]

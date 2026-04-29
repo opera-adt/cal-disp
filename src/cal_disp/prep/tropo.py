@@ -48,8 +48,9 @@ def prepare_troposphere_correction(
 
     Returns
     -------
-    tuple[Path, Path]
-        Paths to the saved reference and secondary troposphere corrections.
+    list[Path]
+        Paths to the saved reference and secondary troposphere LOS corrections,
+        in that order (``[ref_path, sec_path]``).
 
     Raises
     ------

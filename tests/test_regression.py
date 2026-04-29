@@ -290,50 +290,54 @@ def test_workflow_idempotency(
     ds2.close()
 
 
+@pytest.mark.integration
 def test_golden_comparison(
     tmp_path: Path,
-    sample_disp_product: Path,
-    sample_static_los: Path,
-    sample_static_dem: Path,
-    sample_unr_data: tuple[Path, Path],
-    sample_algorithm_params: Path,
+    golden_disp_file: Path,
+    golden_los_file: Path,
+    golden_gnss_lookup: Path,
+    golden_gnss_dir: Path,
+    golden_algorithm_params: Path,
+    golden_output_dir: Path,
     cli_runner: CliRunner,
 ) -> None:
-    """Compare current output against golden reference.
+    """Compare current workflow output against the committed golden reference.
+
+    The golden inputs live in ``tests/data/golden/`` and the expected output
+    in ``tests/golden_output/``.  Both are generated once by running:
+
+        python scripts/create_golden_dataset.py
+
+    and then committed to the repository.  This test re-runs the workflow on
+    the same deterministic inputs and verifies the result is numerically
+    identical (within floating-point tolerance) to the committed reference.
 
     Parameters
     ----------
     tmp_path : Path
-        Temporary directory.
-    sample_disp_product : Path
-        Mock DISP file.
-    sample_static_los : Path
-        Mock LOS file.
-    sample_static_dem : Path
-        Mock DEM file.
-    sample_unr_data : tuple[Path, Path]
-        (lookup_file, tenv8_dir).
-    sample_algorithm_params : Path
-        Sample algorithm parameters YAML file.
+        Temporary directory for this test run.
+    golden_disp_file : Path
+        Committed golden DISP-S1 NetCDF (tests/data/golden/disp/).
+    golden_los_file : Path
+        Committed golden LOS GeoTIFF (tests/data/golden/los.tif).
+    golden_gnss_lookup : Path
+        Committed UNR grid lookup table.
+    golden_gnss_dir : Path
+        Directory containing committed .tenv8 files.
+    golden_algorithm_params : Path
+        Committed algorithm parameters YAML.
+    golden_output_dir : Path
+        Directory containing the committed expected CalProduct NetCDF.
     cli_runner : CliRunner
         Click CLI test runner.
 
     """
-
     if cli is None:
         pytest.skip("Could not import CLI module")
 
-    # Check for golden outputs
-    golden_dir = Path(__file__).parent / "golden_output"
-    if not golden_dir.exists():
-        pytest.skip("Golden output directory not found")
+    golden_files = list(golden_output_dir.glob("*.nc"))
+    assert golden_files, "No .nc files found in tests/golden_output/"
 
-    golden_files = list(golden_dir.glob("*.nc"))
-    if not golden_files:
-        pytest.skip("No golden output files found")
-
-    # Run workflow
-    lookup_file, tenv8_dir = sample_unr_data
     output_dir = tmp_path / "output"
     work_dir = tmp_path / "work"
     output_dir.mkdir()
@@ -345,40 +349,37 @@ def test_golden_comparison(
         [
             "config",
             "-d",
-            str(sample_disp_product),
+            str(golden_disp_file),
             "-ul",
-            str(lookup_file),
+            str(golden_gnss_lookup),
             "-ud",
-            str(tenv8_dir),
+            str(golden_gnss_dir),
             "-uv",
             "0.2",
             "-ut",
-            "variable",
+            "constant",
             "--los-file",
-            str(sample_static_los),
-            "--dem-file",
-            str(sample_static_dem),
+            str(golden_los_file),
             "-a",
-            str(sample_algorithm_params),
+            str(golden_algorithm_params),
             "-c",
             str(config_file),
             "--frame-id",
-            "8882",
+            "36540",
             "-o",
             str(output_dir),
             "--work-dir",
             str(work_dir),
         ],
     )
-    assert result.exit_code == 0
+    assert result.exit_code == 0, f"Config generation failed:\n{result.output}"
 
     result = cli_runner.invoke(cli, ["run", str(config_file)])
-    assert result.exit_code == 0
+    assert result.exit_code == 0, f"Workflow run failed:\n{result.output}"
 
     output_files = list(output_dir.glob("*.nc"))
-    assert len(output_files) > 0
+    assert len(output_files) > 0, "Workflow produced no output NetCDF"
 
-    # Compare against golden
     _compare_outputs(output_files[0], golden_files[0])
 
 

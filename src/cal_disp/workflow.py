@@ -168,8 +168,10 @@ def run_calibration(
     unr_timeseries_dir: Path,
     output_dir: Path,
     algorithm_parameters: AlgorithmParameters | None = None,
-    dem_file: Path | None = None,  # noqa: ARG001 — reserved for future DEM corrections
+    dem_file: Path | None = None,
     los_file: Path | None = None,
+    reference_tropo_files: list[Path] | None = None,
+    secondary_tropo_files: list[Path] | None = None,
     block_shape: tuple[int, int] = (512, 512),  # noqa: ARG001 — TODO: Dask blocking
     n_workers: int = 4,  # noqa: ARG001 — TODO: Dask parallelisation
     threads_per_worker: int = 1,
@@ -210,7 +212,16 @@ def run_calibration(
     algorithm_parameters : AlgorithmParameters, optional
         Algorithm configuration.  Defaults are used when ``None``.
     dem_file : Path, optional
-        DEM GeoTIFF — reserved for future height-based corrections.
+        DEM GeoTIFF.  Required when tropospheric correction files are provided.
+    reference_tropo_files : list[Path], optional
+        OPERA TROPO-ZENITH NetCDF files for the reference date (1–2 files for
+        temporal interpolation).  When provided together with
+        ``secondary_tropo_files``, a differential LOS correction
+        (secondary − reference) is applied to the displacement before surface
+        fitting.
+    secondary_tropo_files : list[Path], optional
+        OPERA TROPO-ZENITH NetCDF files for the secondary date (1–2 files for
+        temporal interpolation).
     los_file : Path
         3-band LOS GeoTIFF (band 1 = east, 2 = north, 3 = up unit vectors).
     block_shape : tuple[int, int]
@@ -382,6 +393,36 @@ def run_calibration(
         )
         if isinstance(disp_masked, np.ma.MaskedArray):
             disp_masked = disp_masked.filled(np.nan)
+
+    # Optional tropospheric correction
+    # Form the differential (secondary − reference) on the fly, matching the
+    # DISP-S1 sign convention used in venti's calibration workflow.
+    _tropo_applied = False
+    if reference_tropo_files and secondary_tropo_files:
+        if dem_file is None:
+            raise ValueError(
+                "dem_file is required when tropospheric correction files are provided"
+            )
+        from cal_disp.prep.tropo import prepare_troposphere_correction
+
+        logger.info("Preparing tropospheric correction (ref + sec)...")
+        tropo_dir = work_directory / "troposphere"
+        ref_tropo_path, sec_tropo_path = prepare_troposphere_correction(
+            disp_file=disp_file,
+            dem_file=dem_file,
+            los_file=los_file,
+            reference_tropo_files=reference_tropo_files,
+            secondary_tropo_files=secondary_tropo_files,
+            output_dir=tropo_dir,
+        )
+        with rasterio.open(ref_tropo_path) as _src:
+            ref_tropo_m = _src.read(1).astype(np.float32)
+        with rasterio.open(sec_tropo_path) as _src:
+            sec_tropo_m = _src.read(1).astype(np.float32)
+        tropo_corr_mm = (sec_tropo_m - ref_tropo_m) * 1000.0  # m → mm
+        disp_masked = np.where(mask, disp_masked - tropo_corr_mm, np.nan)
+        _tropo_applied = True
+        logger.info("Tropospheric correction applied.")
 
     # ------------------------------------------------------------------
     # 6. Fit calibration surface
@@ -555,7 +596,7 @@ def run_calibration(
         cal_disp_software_version=cal_disp_version,
         venti_software_version=venti_version,
         product_pixel_coordinate_convention="center",
-        ceos_atmospheric_phase_correction="none",
+        ceos_atmospheric_phase_correction="tropospheric" if _tropo_applied else "none",
         ceos_gridding_convention="consistent",
         ceos_product_measurement_projection="line_of_sight",
         ceos_ionospheric_phase_correction="none",

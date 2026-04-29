@@ -22,5 +22,4 @@ dependencies:
   # Install the package and remaining Python deps via pip
   - pip
   - pip:
-    - dem-stitcher
     - -e .

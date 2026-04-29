@@ -1,0 +1,1 @@
+/u/aurora-r0/cabrera/opera_vlm/software/cal-disp/tests/data/golden/gnss/grid_latlon_lookup.txt
