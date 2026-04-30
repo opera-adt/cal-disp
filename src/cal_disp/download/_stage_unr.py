@@ -25,8 +25,8 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 # Constants
-VALID_VERSIONS = {"0.1", "0.2"}
-DEFAULT_VERSION: Literal["0.1", "0.2"] = "0.2"
+VALID_VERSIONS = {"0.1", "0.2", "0.3"}
+DEFAULT_VERSION: Literal["0.1", "0.2", "0.3"] = "0.3"
 
 LOOKUP_URL = (
     "https://geodesy.unr.edu/grid_timeseries/Version{version}/grid_latlon_lookup.txt"
@@ -37,7 +37,7 @@ GRID_BASE_URL = (
 
 # Type aliases
 PlateType = Literal["NA", "PA", "IGS14", "IGS20"]
-VersionType = Literal["0.1", "0.2"]
+VersionType = Literal["0.1", "0.2", "0.3"]
 
 
 def create_session(retries: int = 5, backoff: float = 1.0) -> requests.Session:
@@ -81,7 +81,7 @@ def download_lookup_table(
     ----------
     output_dir : Path
         Directory where lookup file will be saved.
-    version : {"0.1", "0.2"}, optional
+    version : {"0.1", "0.2", "0.3"}, optional
         UNR data version. Default is "0.2".
     session : requests.Session or None, optional
         Session with retry logic. If None, a new session is created.
@@ -201,7 +201,7 @@ def download_grid_file(
         Directory where file will be saved.
     plate : {"NA", "PA", "IGS14", "IGS20"}, optional
         Reference plate for the data. Default is "IGS20".
-    version : {"0.1", "0.2"}, optional
+    version : {"0.1", "0.2", "0.3"}, optional
         UNR data version. Default is "0.2".
     session : requests.Session or None, optional
         Session with retry logic. If None, a new session is created.
@@ -237,8 +237,8 @@ def download_grid_file(
         msg = f"Version must be one of {VALID_VERSIONS}, got '{version}'"
         raise ValueError(msg)
 
-    # Handle IGS14/IGS20 plate compatibility
-    if plate == "IGS14" and version == "0.2":
+    # Handle IGS14/IGS20 plate compatibility (not available in v0.2+)
+    if plate == "IGS14" and version in ("0.2", "0.3"):
         plate = "IGS20"
 
     # Build URL and output path
@@ -282,7 +282,7 @@ def download_grid_files(
         Directory where files will be saved.
     plate : {"NA", "PA", "IGS14", "IGS20"}, optional
         Reference plate. Default is "IGS20".
-    version : {"0.1", "0.2"}, optional
+    version : {"0.1", "0.2", "0.3"}, optional
         UNR data version. Default is "0.2".
     max_workers : int, optional
         Number of parallel download threads. Default is 4.
@@ -392,7 +392,7 @@ def download_unr_grid(
         Margin in degrees to expand frame bounding box. Default is 0.5.
     plate : {"NA", "PA", "IGS14", "IGS20"}, optional
         Reference plate. Default is "IGS20".
-    version : {"0.1", "0.2"}, optional
+    version : {"0.1", "0.2", "0.3"}, optional
         UNR grid version. Default is "0.2".
     max_workers : int, optional
         Number of parallel download threads. Default is 4.
@@ -408,7 +408,7 @@ def download_unr_grid(
     >>> # Load with UnrGrid
     >>> from .grid import UnrGrid
     >>> grid = UnrGrid(
-    ...     lookup_table=data_dir / "grid_latlon_lookup_v0.2.txt",
+    ...     lookup_table=data_dir / "grid_latlon_lookup_v0.3.txt",
     ...     data_dir=data_dir,
     ...     frame_id=8882
     ... )
@@ -434,10 +434,7 @@ def download_unr_grid(
     )
 
     # Load lookup and convert to GeoDataFrame
-    if version == "0.2":
-        normalize_longitude = True
-    else:
-        normalize_longitude = False
+    normalize_longitude = version in ("0.2", "0.3")
 
     lookup = load_lookup_table(lookup_file, normalize_longitude=normalize_longitude)
     grid_gdf = gpd.GeoDataFrame(

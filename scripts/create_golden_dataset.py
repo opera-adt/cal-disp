@@ -1,22 +1,30 @@
-"""Generate the golden dataset for cal-disp integration testing.
+"""Generate a synthetic golden dataset for cal-disp validation.
 
 Creates small, fully deterministic input files that mirror the schema of real
 OPERA DISP-S1 / F36540 products, runs the complete calibration workflow, and
-commits both inputs and the expected output to the repository.
+saves both inputs and expected output to an external directory.
 
-Usage (run once from the repo root inside the active conda environment):
+The generated output can be used as a reference with ``cal-disp validate``
+to check that future runs on the same inputs produce identical results:
 
-    python scripts/create_golden_dataset.py
+    python scripts/create_golden_dataset.py --output-dir /path/to/test_data
+    cal-disp run new_runconfig.yaml
+    cal-disp validate /path/to/test_data/golden_output/<ref>.nc <new_output.nc>
 
-Outputs
--------
-tests/data/golden/
-    disp/   -- 200 × 200 synthetic DISP-S1 NetCDF (30 m, UTM 11N)
-    gnss/   -- UNR lookup table + 4 × .tenv8 files
-    los.tif -- 3-band LOS GeoTIFF
+For automated workflow testing (no golden data required) use:
+
+    pytest -m integration
+
+Outputs (written under <output-dir>/)
+--------------------------------------
+golden/
+    disp/          -- 200 × 200 synthetic DISP-S1 NetCDF (30 m, UTM 11N)
+    gnss/          -- UNR lookup table + 4 × .tenv8 files
+    los.tif        -- 3-band LOS GeoTIFF
     water_mask.tif
+    algorithm_parameters.yaml
 
-tests/golden_output/
+golden_output/
     OPERA_L4_CAL-DISP-S1_IW_F36540_VV_*.nc  -- expected CalProduct
 
 Re-running the script regenerates all files deterministically.
@@ -24,6 +32,8 @@ Re-running the script regenerates all files deterministically.
 
 from __future__ import annotations
 
+import argparse
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,15 +42,42 @@ import numpy as np
 import xarray as xr
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-GOLDEN_DATA_DIR = REPO_ROOT / "tests" / "data" / "golden"
-GOLDEN_OUTPUT_DIR = REPO_ROOT / "tests" / "golden_output"
+_ENV_VAR = "CAL_DISP_TEST_DATA"
 
-# ---------------------------------------------------------------------------
+
+def _resolve_output_dir(cli_arg: str | None) -> Path:
+    """Return the output root, preferring the CLI arg over the env var."""
+    if cli_arg:
+        return Path(cli_arg).resolve()
+    env = os.environ.get(_ENV_VAR)
+    if env:
+        return Path(env).resolve()
+    sys.exit(
+        f"ERROR: Provide --output-dir or set the ${_ENV_VAR} environment variable."
+    )
+
+
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    p.add_argument(
+        "--output-dir",
+        metavar="DIR",
+        default=None,
+        help=f"Root directory for the golden dataset (default: ${_ENV_VAR} env var).",
+    )
+    return p.parse_args()
+
+
+# Resolved at call-time in main(); module-level vars set there.
+GOLDEN_DATA_DIR: Path
+GOLDEN_OUTPUT_DIR: Path
+
 # Grid constants — match real frame-36540 resolution and CRS
-# ---------------------------------------------------------------------------
 NY, NX = 200, 200
-SPACING = 30.0        # metres (same as real data)
-EPSG = 32611          # WGS 84 / UTM zone 11N
+SPACING = 30.0  # metres (same as real data)
+EPSG = 32611  # WGS 84 / UTM zone 11N
 
 # Top-left pixel *centre* coords (UTM 11N metres)
 # Chosen so that synthetic GNSS stations sit inside the extent.
@@ -61,13 +98,13 @@ DISP_FILENAME = (
 RNG = np.random.default_rng(0)  # fully deterministic
 
 
-# ---------------------------------------------------------------------------
 # Helper: CRS WKT for EPSG:32611
-# ---------------------------------------------------------------------------
+
 
 def _utm11n_crs_wkt() -> str:
     try:
         from pyproj import CRS
+
         return CRS.from_epsg(EPSG).to_wkt()
     except ImportError:
         # Fallback: hard-coded compact WKT matching real product
@@ -90,24 +127,26 @@ def _utm_to_wgs84(easting: float, northing: float) -> tuple[float, float]:
     """Return (lon, lat) in WGS84 for a UTM 11N (east, north) point."""
     try:
         from pyproj import Transformer
+
         t = Transformer.from_crs(EPSG, 4326, always_xy=True)
         return t.transform(easting, northing)
     except ImportError:
         # Approximate conversion (good to ~0.01° for this area)
         false_e, cm = 500000.0, -117.0
         k0, a = 0.9996, 6378137.0
-        e2 = 0.00669438
         n = (northing) / (k0 * a)
-        lon = cm + (easting - false_e) / (k0 * a * np.cos(np.radians(34.0))) * (180 / np.pi)
+        lon = cm + (easting - false_e) / (k0 * a * np.cos(np.radians(34.0))) * (
+            180 / np.pi
+        )
         lat = n * (180 / np.pi)
         return lon, lat
 
 
-# ---------------------------------------------------------------------------
-# 1. Golden DISP NetCDF
-# ---------------------------------------------------------------------------
+# Golden DISP NetCDF
+
 
 def create_disp(out_dir: Path) -> Path:
+    """Create a synthetic DISP-S1 NetCDF product and return its path."""
     out_dir.mkdir(parents=True, exist_ok=True)
 
     x = np.arange(NX, dtype=np.float64) * SPACING + X0
@@ -127,7 +166,11 @@ def create_disp(out_dir: Path) -> Path:
     displacement = (ramp + blob).astype(np.float32)
 
     # Temporal coherence: gaussian falloff from centre
-    tc = (0.85 * np.exp(-r2 / 0.2) + 0.1 * RNG.random((NY, NX))).clip(0, 1).astype(np.float32)
+    tc = (
+        (0.85 * np.exp(-r2 / 0.2) + 0.1 * RNG.random((NY, NX)))
+        .clip(0, 1)
+        .astype(np.float32)
+    )
 
     recommended_mask = (tc >= 0.6).astype(np.float32)
     cc_labels = np.ones((NY, NX), dtype=np.float32)
@@ -169,39 +212,47 @@ def create_disp(out_dir: Path) -> Path:
             "displacement": xr.DataArray(
                 displacement,
                 dims=["y", "x"],
-                attrs={"units": "meters",
-                       "long_name": "Line-of-sight displacement",
-                       "description": "Displacement along the radar LOS direction.",
-                       **gm},
+                attrs={
+                    "units": "meters",
+                    "long_name": "Line-of-sight displacement",
+                    "description": "Displacement along the radar LOS direction.",
+                    **gm,
+                },
             ),
             "short_wavelength_displacement": xr.DataArray(
                 sw_disp,
                 dims=["y", "x"],
-                attrs={"units": "meters",
-                       "long_name": "Short wavelength displacement",
-                       "wavelength_cutoff": "30000.0",
-                       "wavelength_cutoff_units": "meters",
-                       **gm},
+                attrs={
+                    "units": "meters",
+                    "long_name": "Short wavelength displacement",
+                    "wavelength_cutoff": "30000.0",
+                    "wavelength_cutoff_units": "meters",
+                    **gm,
+                },
             ),
             "temporal_coherence": xr.DataArray(
                 tc,
                 dims=["y", "x"],
-                attrs={"units": "unitless",
-                       "long_name": "Temporal Coherence", **gm},
+                attrs={"units": "unitless", "long_name": "Temporal Coherence", **gm},
             ),
             "recommended_mask": xr.DataArray(
                 recommended_mask,
                 dims=["y", "x"],
-                attrs={"units": "unitless",
-                       "long_name": "Recommended Mask",
-                       "temporal_coherence_threshold": "0.6",
-                       **gm},
+                attrs={
+                    "units": "unitless",
+                    "long_name": "Recommended Mask",
+                    "temporal_coherence_threshold": "0.6",
+                    **gm,
+                },
             ),
             "connected_component_labels": xr.DataArray(
                 cc_labels,
                 dims=["y", "x"],
-                attrs={"units": "unitless",
-                       "long_name": "Connected Component Labels", **gm},
+                attrs={
+                    "units": "unitless",
+                    "long_name": "Connected Component Labels",
+                    **gm,
+                },
             ),
             "water_mask": xr.DataArray(
                 water_mask_arr,
@@ -216,39 +267,57 @@ def create_disp(out_dir: Path) -> Path:
             "estimated_phase_quality": xr.DataArray(
                 phase_sim.copy(),
                 dims=["y", "x"],
-                attrs={"units": "unitless",
-                       "long_name": "Estimated phase quality", **gm},
+                attrs={
+                    "units": "unitless",
+                    "long_name": "Estimated phase quality",
+                    **gm,
+                },
             ),
             "persistent_scatterer_mask": xr.DataArray(
                 np.zeros((NY, NX), dtype=np.float32),
                 dims=["y", "x"],
-                attrs={"units": "unitless",
-                       "long_name": "Persistent Scatterer Mask", **gm},
+                attrs={
+                    "units": "unitless",
+                    "long_name": "Persistent Scatterer Mask",
+                    **gm,
+                },
             ),
             "shp_counts": xr.DataArray(
                 (20 * np.ones((NY, NX))).astype(np.float32),
                 dims=["y", "x"],
-                attrs={"units": "unitless",
-                       "long_name": "Statistically Homogeneous Pixels Counts", **gm},
+                attrs={
+                    "units": "unitless",
+                    "long_name": "Statistically Homogeneous Pixels Counts",
+                    **gm,
+                },
             ),
             "timeseries_inversion_residuals": xr.DataArray(
                 np.zeros((NY, NX), dtype=np.float32),
                 dims=["y", "x"],
-                attrs={"units": "radians",
-                       "long_name": "Timeseries inversion residuals", **gm},
+                attrs={
+                    "units": "radians",
+                    "long_name": "Timeseries inversion residuals",
+                    **gm,
+                },
             ),
             "displacement_corrected_constant_igs20": xr.DataArray(
                 displacement.astype(np.float64),
                 dims=["y", "x"],
-                attrs={"units": "meters",
-                       "long_name": "Line-of-sight displacement",
-                       **gm},
+                attrs={
+                    "units": "meters",
+                    "long_name": "Line-of-sight displacement",
+                    **gm,
+                },
             ),
             "reference_time": xr.DataArray(
                 [np.datetime64(REF_DATETIME.replace(tzinfo=None), "ns")],
                 dims=["time"],
-                attrs={"standard_name": "time",
-                       "long_name": "Time corresponding to beginning of reference acquisition"},
+                attrs={
+                    "standard_name": "time",
+                    "long_name": (
+                        "Time corresponding to beginning of reference acquisition"
+                    ),
+                },
             ),
             "spatial_ref": spatial_ref,
         },
@@ -269,15 +338,15 @@ def create_disp(out_dir: Path) -> Path:
 
     out = out_dir / DISP_FILENAME
     ds.to_netcdf(out, engine="h5netcdf")
-    print(f"  created {out.relative_to(REPO_ROOT)}")
+    print(f"  created {out.name}")
     return out
 
 
-# ---------------------------------------------------------------------------
-# 2. LOS GeoTIFF  (3 bands: east, north, up)
-# ---------------------------------------------------------------------------
+# LOS GeoTIFF  (3 bands: east, north, up)
+
 
 def create_los(out_dir: Path) -> Path:
+    """Create a 3-band LOS ENU GeoTIFF and return its path."""
     import rasterio
     from rasterio.crs import CRS
     from rasterio.transform import from_origin
@@ -285,13 +354,12 @@ def create_los(out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Descending Sentinel-1 geometry, typical for CA (incidence ~37°)
-    los_up = np.full((NY, NX), 0.7986, dtype=np.float32)       # cos(37°)
-    los_east = np.full((NY, NX), -0.5972, dtype=np.float32)    # ascending east
-    los_north = np.full((NY, NX), 0.0744, dtype=np.float32)    # small north
+    los_up = np.full((NY, NX), 0.7986, dtype=np.float32)  # cos(37°)
+    los_east = np.full((NY, NX), -0.5972, dtype=np.float32)  # ascending east
+    los_north = np.full((NY, NX), 0.0744, dtype=np.float32)  # small north
 
     # Small spatial variation so the surface fitting has non-trivial geometry
-    xx, yy = np.meshgrid(np.linspace(-0.02, 0.02, NX),
-                         np.linspace(-0.02, 0.02, NY))
+    xx, yy = np.meshgrid(np.linspace(-0.02, 0.02, NX), np.linspace(-0.02, 0.02, NY))
     los_up += xx.astype(np.float32)
     los_east += yy.astype(np.float32)
 
@@ -300,9 +368,16 @@ def create_los(out_dir: Path) -> Path:
     crs = CRS.from_epsg(EPSG)
 
     with rasterio.open(
-        out, "w",
-        driver="GTiff", height=NY, width=NX,
-        count=3, dtype=np.float32, crs=crs, transform=transform, nodata=0.0,
+        out,
+        "w",
+        driver="GTiff",
+        height=NY,
+        width=NX,
+        count=3,
+        dtype=np.float32,
+        crs=crs,
+        transform=transform,
+        nodata=0.0,
         compress="deflate",
     ) as dst:
         dst.write(los_east, 1)
@@ -312,15 +387,15 @@ def create_los(out_dir: Path) -> Path:
         dst.update_tags(2, name="LOS North")
         dst.update_tags(3, name="LOS Up")
 
-    print(f"  created {out.relative_to(REPO_ROOT)}")
+    print(f"  created {out.name}")
     return out
 
 
-# ---------------------------------------------------------------------------
-# 3. Water mask GeoTIFF
-# ---------------------------------------------------------------------------
+# Water mask GeoTIFF
+
 
 def create_water_mask(out_dir: Path) -> Path:
+    """Create an all-land water mask GeoTIFF and return its path."""
     import rasterio
     from rasterio.crs import CRS
     from rasterio.transform import from_origin
@@ -332,20 +407,26 @@ def create_water_mask(out_dir: Path) -> Path:
     mask = np.ones((NY, NX), dtype=np.uint8)  # all land
 
     with rasterio.open(
-        out, "w",
-        driver="GTiff", height=NY, width=NX,
-        count=1, dtype=np.uint8, crs=crs, transform=transform, nodata=255,
+        out,
+        "w",
+        driver="GTiff",
+        height=NY,
+        width=NX,
+        count=1,
+        dtype=np.uint8,
+        crs=crs,
+        transform=transform,
+        nodata=255,
         compress="deflate",
     ) as dst:
         dst.write(mask, 1)
 
-    print(f"  created {out.relative_to(REPO_ROOT)}")
+    print(f"  created {out.name}")
     return out
 
 
-# ---------------------------------------------------------------------------
-# 4. GNSS lookup + .tenv8 files
-# ---------------------------------------------------------------------------
+# GNSS lookup + .tenv8 files
+
 
 def create_gnss(out_dir: Path) -> tuple[Path, Path]:
     """Return (lookup_file, tenv8_dir)."""
@@ -384,7 +465,7 @@ def create_gnss(out_dir: Path) -> tuple[Path, Path]:
     rng_gnss = np.random.default_rng(42)  # separate seed for GNSS noise
 
     # Linear velocity typical of California GNSS (IGS20 reference frame)
-    v_east, v_north, v_up = 3.0, 0.0, -0.5   # mm/yr
+    v_east, v_north, v_up = 3.0, 0.0, -0.5  # mm/yr
     sig_e, sig_n, sig_u = 1.0, 1.0, 3.0
 
     for i in range(1, 5):
@@ -401,15 +482,15 @@ def create_gnss(out_dir: Path) -> tuple[Path, Path]:
                     f"  {sig_e:.3f}  {sig_n:.3f}  {sig_u:.3f}  0\n"
                 )
 
-    print(f"  created {lookup.relative_to(REPO_ROOT)} + 4 .tenv8 files")
+    print(f"  created {lookup.name} + 4 .tenv8 files")
     return lookup, out_dir
 
 
-# ---------------------------------------------------------------------------
-# 5. Algorithm parameters YAML
-# ---------------------------------------------------------------------------
+# Algorithm parameters YAML
+
 
 def create_algorithm_params(out_dir: Path) -> Path:
+    """Write the golden algorithm parameters YAML and return its path."""
     from cal_disp.config._algorithm import AlgorithmParameters, CalibrationOptions
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -418,20 +499,19 @@ def create_algorithm_params(out_dir: Path) -> Path:
     AlgorithmParameters(
         calibration_options=CalibrationOptions(
             posting_meters=SPACING,
-            window_size_meters=1500.0,   # 50-pixel window on 200×200 grid
+            window_size_meters=1500.0,  # 50-pixel window on 200×200 grid
             downsample_factor=1,
             calibration_surface_smoothing_sigma=0,
-            grid_type="constant",        # deterministic; no epoch-specific GNSS call
+            grid_type="constant",  # deterministic; no epoch-specific GNSS call
         )
     ).to_yaml(params_file, with_comments=False)
 
-    print(f"  created {params_file.relative_to(REPO_ROOT)}")
+    print(f"  created {params_file}")
     return params_file
 
 
-# ---------------------------------------------------------------------------
-# 6. Run workflow → golden output
-# ---------------------------------------------------------------------------
+# Run workflow → golden output
+
 
 def run_workflow(
     disp_file: Path,
@@ -441,6 +521,7 @@ def run_workflow(
     params_file: Path,
     output_dir: Path,
 ) -> Path:
+    """Run the calibration workflow and return the path to the output CalProduct."""
     from cal_disp.config._algorithm import AlgorithmParameters
     from cal_disp.workflow import run_calibration
 
@@ -459,18 +540,26 @@ def run_workflow(
         calibration_reference_type="constant",
         calibration_reference_reference_frame="IGS20",
     )
-    print(f"  golden output: {out.relative_to(REPO_ROOT)}")
+    print(f"  golden output: {out}")
     return out
 
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
+
 
 def main() -> None:
+    """Generate all golden dataset files and run the calibration workflow."""
+    global GOLDEN_DATA_DIR, GOLDEN_OUTPUT_DIR
+
+    args = _parse_args()
+    root = _resolve_output_dir(args.output_dir)
+
+    GOLDEN_DATA_DIR = root / "golden"
+    GOLDEN_OUTPUT_DIR = root / "golden_output"
+
     print("=== Generating golden dataset ===")
-    print(f"  inputs  → {GOLDEN_DATA_DIR.relative_to(REPO_ROOT)}")
-    print(f"  output  → {GOLDEN_OUTPUT_DIR.relative_to(REPO_ROOT)}")
+    print(f"  inputs  → {GOLDEN_DATA_DIR}")
+    print(f"  output  → {GOLDEN_OUTPUT_DIR}")
     print()
 
     print("Creating DISP product...")
@@ -501,7 +590,7 @@ def main() -> None:
         sys.exit(1)
 
     print()
-    print("Done.  Commit tests/data/golden/ and tests/golden_output/ to the repo.")
+    print(f"Done.  Set ${_ENV_VAR}={root} to enable integration tests.")
 
 
 if __name__ == "__main__":

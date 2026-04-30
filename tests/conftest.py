@@ -638,65 +638,6 @@ def sample_disp_file(
     return filepath
 
 
-# ---------------------------------------------------------------------------
-# Golden dataset fixtures (session-scoped, loaded from tests/data/golden/)
-# ---------------------------------------------------------------------------
-
-_GOLDEN_DIR = Path(__file__).parent / "data" / "golden"
-_GOLDEN_OUTPUT_DIR = Path(__file__).parent / "golden_output"
-
-
-def _require_golden(path: Path) -> Path:
-    """Skip the test if the golden file/dir does not exist."""
-    if not path.exists():
-        pytest.skip(
-            f"Golden dataset not found at {path}. "
-            "Run: python scripts/create_golden_dataset.py"
-        )
-    return path
-
-
-@pytest.fixture(scope="session")
-def golden_disp_file() -> Path:
-    """Path to the committed golden DISP-S1 NetCDF."""
-    matches = list((_GOLDEN_DIR / "disp").glob("OPERA_L3_DISP-S1_*.nc"))
-    if not matches:
-        pytest.skip(
-            "Golden DISP file not found. Run: python scripts/create_golden_dataset.py"
-        )
-    return matches[0]
-
-
-@pytest.fixture(scope="session")
-def golden_los_file() -> Path:
-    """Path to the committed golden LOS GeoTIFF."""
-    return _require_golden(_GOLDEN_DIR / "los.tif")
-
-
-@pytest.fixture(scope="session")
-def golden_gnss_lookup() -> Path:
-    """Path to the committed golden UNR grid lookup table."""
-    return _require_golden(_GOLDEN_DIR / "gnss" / "grid_latlon_lookup.txt")
-
-
-@pytest.fixture(scope="session")
-def golden_gnss_dir() -> Path:
-    """Path to the directory with committed golden .tenv8 files."""
-    return _require_golden(_GOLDEN_DIR / "gnss")
-
-
-@pytest.fixture(scope="session")
-def golden_algorithm_params() -> Path:
-    """Path to the committed golden algorithm parameters YAML."""
-    return _require_golden(_GOLDEN_DIR / "algorithm_parameters.yaml")
-
-
-@pytest.fixture(scope="session")
-def golden_output_dir() -> Path:
-    """Path to the committed golden output directory."""
-    return _require_golden(_GOLDEN_OUTPUT_DIR)
-
-
 # Pytest configuration
 
 
