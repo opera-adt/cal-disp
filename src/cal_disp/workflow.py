@@ -28,9 +28,54 @@ from cal_disp.product import CalProduct, DispProduct
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
 # Internal helpers
-# ---------------------------------------------------------------------------
+def _build_event_mask(
+    disp_file: Path,
+    defo_area_db: Path | None,
+    event_db: Path | None,
+    mask_dir: Path,
+) -> Path | None:
+    """Generate and combine event/deformation masks from GeoJSON databases.
+
+    Runs ``generate_event_mask`` for each available GeoJSON, selects only
+    features whose ``frame_id`` and ``event_date`` overlap the DISP product
+    epoch, and ANDs the results into a single combined mask GeoTIFF
+    (1 = valid, 0 = masked).  Returns ``None`` when no database is provided.
+    """
+    from cal_disp.prep.generate_event_mask import generate_event_mask
+
+    mask_dir.mkdir(parents=True, exist_ok=True)
+    mask_paths: list[Path] = []
+
+    for db_path, label, filter_by_date in [
+        (defo_area_db, "defo_area", False),  # always mask for the frame
+        (event_db, "event", True),  # mask only within the epoch
+    ]:
+        if db_path is not None:
+            out = generate_event_mask(
+                product_path=disp_file,
+                geojson_path=db_path,
+                output_path=mask_dir / f"{label}_mask.tif",
+                filter_by_date=filter_by_date,
+            )
+            mask_paths.append(out)
+
+    if not mask_paths:
+        return None
+    if len(mask_paths) == 1:
+        return mask_paths[0]
+
+    # AND all individual masks: a pixel is valid only if valid in every mask
+    combined = mask_dir / "combined_event_mask.tif"
+    with rasterio.open(mask_paths[0]) as src:
+        combined_mask = src.read(1).astype(bool)
+        meta = src.meta.copy()
+    for p in mask_paths[1:]:
+        with rasterio.open(p) as src:
+            combined_mask &= src.read(1).astype(bool)
+    with rasterio.open(combined, "w", **meta) as dst:
+        dst.write(combined_mask.astype(np.uint8)[np.newaxis])
+    return combined
 
 
 def _date_to_decimal_year(dt: datetime) -> float:
@@ -157,11 +202,7 @@ def _compute_gnss_los(
     )
 
 
-# ---------------------------------------------------------------------------
 # Public entry point
-# ---------------------------------------------------------------------------
-
-
 def run_calibration(
     disp_file: Path,
     unr_grid_latlon_file: Path,
@@ -172,6 +213,8 @@ def run_calibration(
     los_file: Path | None = None,
     reference_tropo_files: list[Path] | None = None,
     secondary_tropo_files: list[Path] | None = None,
+    defo_area_db_json: Path | None = None,
+    event_db_json: Path | None = None,
     block_shape: tuple[int, int] = (512, 512),  # noqa: ARG001 — TODO: Dask blocking
     n_workers: int = 4,  # noqa: ARG001 — TODO: Dask parallelisation
     threads_per_worker: int = 1,
@@ -224,6 +267,13 @@ def run_calibration(
         temporal interpolation).
     los_file : Path
         3-band LOS GeoTIFF (band 1 = east, 2 = north, 3 = up unit vectors).
+    defo_area_db_json : Path, optional
+        GeoJSON of continuous deformation areas to exclude from calibration.
+        Features are filtered by ``frame_id`` and ``event_date`` matching the
+        DISP product epoch.
+    event_db_json : Path, optional
+        GeoJSON of earthquake/volcanic events to exclude from calibration.
+        Same filtering logic as ``defo_area_db_json``.
     block_shape : tuple[int, int]
         Dask block shape — reserved for future parallelisation.
     n_workers : int
@@ -289,9 +339,7 @@ def run_calibration(
 
     cal = algorithm_parameters.calibration_options
 
-    # ------------------------------------------------------------------
-    # 1. Load DISP product
-    # ------------------------------------------------------------------
+    # Load DISP product
     logger.info("Loading DISP product: %s", disp_file.name)
     disp_product = DispProduct.from_path(disp_file)
     ds_disp = disp_product.open_dataset()
@@ -323,9 +371,7 @@ def run_calibration(
 
     source_data_satellite_names = [f"Sentinel-{platform_id[-2:]}"]
 
-    # ------------------------------------------------------------------
-    # 2. GNSS reference setup
-    # ------------------------------------------------------------------
+    # GNSS reference setup
     logger.info("Setting up GNSS reference...")
     gnss_dir = work_directory / "gnss"
     gnss_ref = _setup_gnss_reference(
@@ -336,15 +382,11 @@ def run_calibration(
         reference_frame=cal.reference_frame,
     )
 
-    # ------------------------------------------------------------------
-    # 3. Load LOS unit vectors
-    # ------------------------------------------------------------------
+    # Load LOS unit vectors
     logger.info("Loading LOS unit vectors: %s", los_file.name)
     los_east, los_north, los_up = _load_los_bands(los_file)
 
-    # ------------------------------------------------------------------
-    # 4. Compute GNSS LOS reference (mm)
-    # ------------------------------------------------------------------
+    # Compute GNSS LOS reference (mm)
     ref_decimal = _date_to_decimal_year(disp_product.reference_date)
     sec_decimal = _date_to_decimal_year(disp_product.secondary_date)
 
@@ -362,9 +404,7 @@ def run_calibration(
         reference_frame=cal.reference_frame,
     )
 
-    # ------------------------------------------------------------------
-    # 5. Prepare displacement array (mm, 2-D)
-    # ------------------------------------------------------------------
+    # Prepare displacement array (mm, 2-D)
     # A single DISP file encodes one (ref_date, sec_date) pair.
     # displacement is 2-D (y, x); time is a length-1 coordinate.
     disp_2d = ds_disp.displacement.values * 1000.0  # m → mm
@@ -377,6 +417,20 @@ def run_calibration(
     if "water_mask" in ds_disp:
         # water_mask convention: 1 = land/valid, 0 = water/invalid
         mask &= ds_disp.water_mask.values.astype(bool)
+    if defo_area_db_json is not None or event_db_json is not None:
+        event_mask_file = _build_event_mask(
+            disp_file=disp_file,
+            defo_area_db=defo_area_db_json,
+            event_db=event_db_json,
+            mask_dir=work_directory / "event_masks",
+        )
+        if event_mask_file is not None:
+            with rasterio.open(event_mask_file) as _src:
+                event_mask = _src.read(1).astype(bool)
+            mask &= event_mask
+            logger.info(
+                "Applied event mask: %d pixels excluded", int((~event_mask).sum())
+            )
 
     disp_masked = np.where(mask, disp_2d, np.nan)
 
@@ -424,9 +478,7 @@ def run_calibration(
         _tropo_applied = True
         logger.info("Tropospheric correction applied.")
 
-    # ------------------------------------------------------------------
-    # 6. Fit calibration surface
-    # ------------------------------------------------------------------
+    # Fit calibration surface
     spatial_processor = SpatialProcessor()
     win_px = cal.window_size_pixels
     ds_factor = cal.downsample_factor
@@ -502,9 +554,7 @@ def run_calibration(
         attrs={"units": "meters", "long_name": "calibration_uncertainty"},
     )
 
-    # ------------------------------------------------------------------
-    # 7. Coarse 3-D velocity model (placeholder — DecompositionWorkflow TBD)
-    # ------------------------------------------------------------------
+    # Coarse 3-D velocity model (placeholder — DecompositionWorkflow TBD)
     coarse_y = y[::167]
     coarse_x = x[::167]
     coarse_shape = (len(time), len(coarse_y), len(coarse_x))
@@ -524,9 +574,7 @@ def run_calibration(
         "up_down": _zero_da("up_down_velocity", "meters/year"),
     }
 
-    # ------------------------------------------------------------------
-    # 8. Software version strings
-    # ------------------------------------------------------------------
+    # Software version strings
     def _pkg_version(name: str) -> str:
         try:
             return importlib.metadata.version(name)
@@ -541,9 +589,7 @@ def run_calibration(
     algorithm_parameters.to_yaml(_buf, with_comments=False)
     algorithm_parameters_yaml = _buf.getvalue()
 
-    # ------------------------------------------------------------------
-    # 9. Build CalProduct
-    # ------------------------------------------------------------------
+    # Build CalProduct
     logger.info("Writing CalProduct to %s/...", output_dir)
     cal_product = CalProduct.create(
         calibration=calibration,

@@ -39,7 +39,7 @@
 #     dem.tif         (symlinked from --static-dir)
 #     algorithm_parameters.yaml
 #   golden_output/
-#     OPERA_L4_CAL-DISP-S1_*.nc   expected CalProduct
+#     OPERA_L4_DISP-CAL-S1_*.nc   expected CalProduct
 #
 # After running, enable integration tests with:
 #   export CAL_DISP_TEST_DATA=<output-dir>

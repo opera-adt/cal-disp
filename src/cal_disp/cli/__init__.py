@@ -5,7 +5,7 @@ import click
 from .config import config_cli
 from .download import download_group
 from .run import run_cli
-from .validate import validate_cli
+from .validate import validate_cli, validate_golden_cli
 
 
 @click.group(name="cal-disp")
@@ -21,6 +21,7 @@ def cli_app(ctx: click.Context, debug: bool) -> None:
 cli_app.add_command(config_cli)
 cli_app.add_command(run_cli)
 cli_app.add_command(validate_cli)
+cli_app.add_command(validate_golden_cli)
 cli_app.add_command(download_group)
 
 

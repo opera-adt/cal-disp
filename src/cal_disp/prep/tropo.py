@@ -86,8 +86,10 @@ def prepare_troposphere_correction(
     dem = dem.rio.write_crs(dem.attrs["crs_wkt"])
     max_height = dem.dem.max().values + 3e3
 
-    # Load LOS geometry
+    # Load LOS geometry and propagate CRS
     los_ds = StaticLayer.from_path(los_file).to_dataset()
+    if "crs_wkt" in los_ds.attrs:
+        los_ds = los_ds.rio.write_crs(los_ds.attrs["crs_wkt"])
 
     # Get spatial bounds from product
     bounds = list(disp_product.get_bounds_wgs84().values())

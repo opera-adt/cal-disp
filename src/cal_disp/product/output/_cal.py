@@ -118,7 +118,7 @@ class CalProduct:
 
     # Filename pattern supporting both S1 and NI sensors
     _PATTERN = re.compile(
-        r"OPERA_L4_CAL-DISP-(?P<sensor>S1|NI)_"
+        r"OPERA_L4_DISP-CAL-(?P<sensor>S1|NI)_"
         r"(?P<mode>\w+)_"
         r"F(?P<frame_id>\d+)_"
         r"(?P<pol>\w+)_"
@@ -186,7 +186,7 @@ class CalProduct:
         Examples
         --------
         >>> cal = CalProduct.from_path(
-        ...     "OPERA_L4_CAL-DISP-S1_IW_F08882_VV_20220111T002651Z_"
+        ...     "OPERA_L4_DISP-CAL-S1_IW_F08882_VV_20220111T002651Z_"
         ...     "20220722T002657Z_v1.0_20251227T123456Z.nc"
         ... )
         >>> cal.sensor
@@ -972,7 +972,7 @@ class CalProduct:
 
             # Add OPERA metadata tags
             dst.update_tags(
-                product_type=f"OPERA_L4_CAL-DISP-{self.sensor}",
+                product_type=f"OPERA_L4_DISP-CAL-{self.sensor}",
                 sensor=self.sensor,
                 frame_id=self.frame_id,
                 polarization=self.polarization,

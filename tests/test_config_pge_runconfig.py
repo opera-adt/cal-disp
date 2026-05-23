@@ -19,10 +19,10 @@ class TestPrimaryExecutable:
     """Tests for PrimaryExecutable configuration."""
 
     def test_default_product_type(self):
-        """Should have CAL_DISP as default product type."""
+        """Should have DISP_CAL as default product type."""
         exec_config = PrimaryExecutable()
 
-        assert exec_config.product_type == "CAL_DISP"
+        assert exec_config.product_type == "DISP_CAL"
 
     def test_custom_product_type(self):
         """Should accept custom product type."""
@@ -151,7 +151,7 @@ class TestRunConfig:
         )
 
         assert config.output_options.product_version == "1.0"
-        assert config.primary_executable.product_type == "CAL_DISP"
+        assert config.primary_executable.product_type == "DISP_CAL"
         assert config.worker_settings.n_workers == 4
 
     def test_with_all_groups(
@@ -323,7 +323,7 @@ class TestRunConfig:
 
         assert "PGE Run Configuration" in summary
         assert "8882" in summary  # Frame ID
-        assert "CAL_DISP" in summary  # Product type
+        assert "DISP_CAL" in summary  # Product type
 
     def test_to_workflow(
         self,

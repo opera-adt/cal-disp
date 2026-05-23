@@ -17,7 +17,7 @@ def compare_cal_products(
     tolerance: float = 1e-6,
     group: str = "all",
 ) -> bool:
-    """Compare two CAL-DISP products.
+    """Compare two DISP-CAL products.
 
     Parameters
     ----------

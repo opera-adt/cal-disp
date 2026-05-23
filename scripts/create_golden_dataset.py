@@ -15,17 +15,26 @@ For automated workflow testing (no golden data required) use:
 
     pytest -m integration
 
-Outputs (written under <output-dir>/)
---------------------------------------
-golden/
-    disp/          -- 200 × 200 synthetic DISP-S1 NetCDF (30 m, UTM 11N)
-    gnss/          -- UNR lookup table + 4 × .tenv8 files
-    los.tif        -- 3-band LOS GeoTIFF
-    water_mask.tif
+Outputs (written under <output-dir>/golden_datasets/)
+------------------------------------------------------
+input_data/
+    disp/                              -- 200 × 200 synthetic DISP-S1 NetCDF
+                                          (30 m, UTM 11N)
+    gnss/                              -- UNR lookup table + 4 × .tenv8 files
+    static_input/
+        OPERA_L3_DISP-S1-STATIC_F*_line_of_sight_enu.tif
+        OPERA_L3_DISP-S1-STATIC_F*_dem.tif
+    tropo/
+        OPERA_L4_TROPO-ZENITH_<ref_date>_..._HRES_v1.0.nc
+        OPERA_L4_TROPO-ZENITH_<sec_date>_..._HRES_v1.0.nc
+
+configs/
     algorithm_parameters.yaml
 
 golden_output/
-    OPERA_L4_CAL-DISP-S1_IW_F36540_VV_*.nc  -- expected CalProduct
+    OPERA_L4_DISP-CAL-S1_IW_F36540_VV_*.nc  -- known-good reference CalProduct
+
+output/            -- empty; reserved for new runs during validation
 
 Re-running the script regenerates all files deterministically.
 """
@@ -71,15 +80,16 @@ def _parse_args() -> argparse.Namespace:
 
 
 # Resolved at call-time in main(); module-level vars set there.
-GOLDEN_DATA_DIR: Path
+INPUT_DATA_DIR: Path
+CONFIGS_DIR: Path
 GOLDEN_OUTPUT_DIR: Path
 
 # Grid constants — match real frame-36540 resolution and CRS
 NY, NX = 200, 200
-SPACING = 30.0  # metres (same as real data)
+SPACING = 30.0  # meters (same as real data)
 EPSG = 32611  # WGS 84 / UTM zone 11N
 
-# Top-left pixel *centre* coords (UTM 11N metres)
+# Top-left pixel *centre* coords (UTM 11N meters)
 # Chosen so that synthetic GNSS stations sit inside the extent.
 X0 = 405000.0
 Y0 = 3778000.0
@@ -94,13 +104,24 @@ DISP_FILENAME = (
     f"{SEC_DATETIME:%Y%m%dT%H%M%S}Z_"
     "v1.0_20250101T000000Z.nc"
 )
+LOS_FILENAME = (
+    f"OPERA_L3_DISP-S1-STATIC_F{FRAME_ID:05d}_20140403_S1A_v1.0_line_of_sight_enu.tif"
+)
+DEM_FILENAME = f"OPERA_L3_DISP-S1-STATIC_F{FRAME_ID:05d}_20140403_S1A_v1.0_dem.tif"
+
+# Tropo filenames — sensing time matches DISP dates so matches_date() passes
+_TROPO_PROD = "20250101T000000Z"
+REF_TROPO_FILENAME = (
+    f"OPERA_L4_TROPO-ZENITH_{REF_DATETIME:%Y%m%dT%H%M%S}Z_{_TROPO_PROD}_HRES_v1.0.nc"
+)
+SEC_TROPO_FILENAME = (
+    f"OPERA_L4_TROPO-ZENITH_{SEC_DATETIME:%Y%m%dT%H%M%S}Z_{_TROPO_PROD}_HRES_v1.0.nc"
+)
 
 RNG = np.random.default_rng(0)  # fully deterministic
 
 
 # Helper: CRS WKT for EPSG:32611
-
-
 def _utm11n_crs_wkt() -> str:
     try:
         from pyproj import CRS
@@ -143,8 +164,6 @@ def _utm_to_wgs84(easting: float, northing: float) -> tuple[float, float]:
 
 
 # Golden DISP NetCDF
-
-
 def create_disp(out_dir: Path) -> Path:
     """Create a synthetic DISP-S1 NetCDF product and return its path."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -343,8 +362,6 @@ def create_disp(out_dir: Path) -> Path:
 
 
 # LOS GeoTIFF  (3 bands: east, north, up)
-
-
 def create_los(out_dir: Path) -> Path:
     """Create a 3-band LOS ENU GeoTIFF and return its path."""
     import rasterio
@@ -363,7 +380,7 @@ def create_los(out_dir: Path) -> Path:
     los_up += xx.astype(np.float32)
     los_east += yy.astype(np.float32)
 
-    out = out_dir / "los.tif"
+    out = out_dir / LOS_FILENAME
     transform = from_origin(X0 - SPACING / 2, Y0 + SPACING / 2, SPACING, SPACING)
     crs = CRS.from_epsg(EPSG)
 
@@ -391,20 +408,26 @@ def create_los(out_dir: Path) -> Path:
     return out
 
 
-# Water mask GeoTIFF
+# DEM GeoTIFF (static input)
+def create_dem(out_dir: Path) -> Path:
+    """Create a synthetic DEM GeoTIFF in UTM 11N and return its path.
 
-
-def create_water_mask(out_dir: Path) -> Path:
-    """Create an all-land water mask GeoTIFF and return its path."""
+    Uses the same grid as the synthetic DISP product (200 × 200, 30 m, UTM 11N)
+    so the tropo pipeline needs no reprojection and shapes always match.
+    """
     import rasterio
     from rasterio.crs import CRS
     from rasterio.transform import from_origin
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    out = out_dir / "water_mask.tif"
+
+    rng_dem = np.random.default_rng(7)
+    xx, yy = np.meshgrid(np.linspace(0, 1, NX), np.linspace(0, 1, NY))
+    elevation = (200 * xx + 150 * yy + 50 * rng_dem.random((NY, NX))).astype(np.float32)
+
+    out = out_dir / DEM_FILENAME
     transform = from_origin(X0 - SPACING / 2, Y0 + SPACING / 2, SPACING, SPACING)
     crs = CRS.from_epsg(EPSG)
-    mask = np.ones((NY, NX), dtype=np.uint8)  # all land
 
     with rasterio.open(
         out,
@@ -413,21 +436,78 @@ def create_water_mask(out_dir: Path) -> Path:
         height=NY,
         width=NX,
         count=1,
-        dtype=np.uint8,
+        dtype=np.float32,
         crs=crs,
         transform=transform,
-        nodata=255,
+        nodata=-9999.0,
         compress="deflate",
     ) as dst:
-        dst.write(mask, 1)
+        dst.write(elevation, 1)
 
     print(f"  created {out.name}")
     return out
 
 
+# TROPO-ZENITH NetCDF files (reference + secondary)
+def create_tropo(out_dir: Path) -> tuple[Path, Path]:
+    """Create synthetic TROPO-ZENITH files for reference and secondary dates."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    n_height, n_lat, n_lon = 20, 50, 50
+    height = np.linspace(0, 15_000, n_height)
+    lat = np.linspace(34.5, 33.5, n_lat)  # north → south (decreasing)
+    lon = np.linspace(-119.0, -117.0, n_lon)
+
+    spatial_ref = xr.DataArray(
+        0,
+        attrs={
+            "crs_wkt": (
+                'GEOGCS["WGS 84",DATUM["WGS_1984",'
+                'SPHEROID["WGS 84",6378137,298.257223563]],'
+                'PRIMEM["Greenwich",0],'
+                'UNIT["degree",0.0174532925199433]]'
+            )
+        },
+    )
+
+    rng_tropo = np.random.default_rng(99)
+    paths = []
+
+    for sensing_dt, filename in [
+        (REF_DATETIME, REF_TROPO_FILENAME),
+        (SEC_DATETIME, SEC_TROPO_FILENAME),
+    ]:
+        wet = (0.05 + 0.02 * rng_tropo.random((n_height, n_lat, n_lon))).astype(
+            np.float32
+        )
+        hydro = (2.0 + 0.1 * rng_tropo.random((n_height, n_lat, n_lon))).astype(
+            np.float32
+        )
+
+        ds = xr.Dataset(
+            {
+                "wet_delay": (["height", "latitude", "longitude"], wet),
+                "hydrostatic_delay": (["height", "latitude", "longitude"], hydro),
+                "spatial_ref": spatial_ref,
+            },
+            coords={
+                "height": height,
+                "latitude": lat,
+                "longitude": lon,
+                "time": [np.datetime64(sensing_dt.replace(tzinfo=None), "ns")],
+            },
+            attrs={"units": "meters", "model": "HRES"},
+        )
+
+        out = out_dir / filename
+        ds.to_netcdf(out, engine="h5netcdf")
+        print(f"  created {out.name}")
+        paths.append(out)
+
+    return paths[0], paths[1]
+
+
 # GNSS lookup + .tenv8 files
-
-
 def create_gnss(out_dir: Path) -> tuple[Path, Path]:
     """Return (lookup_file, tenv8_dir)."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -487,8 +567,6 @@ def create_gnss(out_dir: Path) -> tuple[Path, Path]:
 
 
 # Algorithm parameters YAML
-
-
 def create_algorithm_params(out_dir: Path) -> Path:
     """Write the golden algorithm parameters YAML and return its path."""
     from cal_disp.config._algorithm import AlgorithmParameters, CalibrationOptions
@@ -511,75 +589,128 @@ def create_algorithm_params(out_dir: Path) -> Path:
 
 
 # Run workflow → golden output
-
-
 def run_workflow(
     disp_file: Path,
     los_file: Path,
+    dem_file: Path,
     gnss_lookup: Path,
     gnss_dir: Path,
     params_file: Path,
+    ref_tropo_files: list[Path],
+    sec_tropo_files: list[Path],
     output_dir: Path,
 ) -> Path:
-    """Run the calibration workflow and return the path to the output CalProduct."""
-    from cal_disp.config._algorithm import AlgorithmParameters
-    from cal_disp.workflow import run_calibration
+    """Generate the golden output via the cal-disp CLI (config + run)."""
+    import subprocess
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = output_dir / "_work"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    config_file = work_dir / "runconfig.yaml"
 
-    params = AlgorithmParameters.from_yaml(params_file)
+    # Build the tropo flags (one --ref/sec-tropo-files flag per file)
+    ref_flags = [f for p in ref_tropo_files for f in ("--ref-tropo-files", str(p))]
+    sec_flags = [f for p in sec_tropo_files for f in ("--sec-tropo-files", str(p))]
 
-    out = run_calibration(
-        disp_file=disp_file,
-        unr_grid_latlon_file=gnss_lookup,
-        unr_timeseries_dir=gnss_dir,
-        output_dir=output_dir,
-        algorithm_parameters=params,
-        los_file=los_file,
-        work_directory=output_dir / "_work",
-        calibration_reference_type="constant",
-        calibration_reference_reference_frame="IGS20",
+    subprocess.run(
+        [
+            "cal-disp",
+            "config",
+            "-d",
+            str(disp_file),
+            "-ul",
+            str(gnss_lookup),
+            "-ud",
+            str(gnss_dir),
+            "-uv",
+            "0.3",
+            "-ut",
+            "constant",
+            "--los-file",
+            str(los_file),
+            "--dem-file",
+            str(dem_file),
+            *ref_flags,
+            *sec_flags,
+            "-a",
+            str(params_file),
+            "--frame-id",
+            str(FRAME_ID),
+            "-o",
+            str(output_dir),
+            "--work-dir",
+            str(work_dir),
+            "-c",
+            str(config_file),
+        ],
+        check=True,
     )
+
+    subprocess.run(["cal-disp", "run", str(config_file)], check=True)
+
+    output_files = sorted(output_dir.glob("OPERA_L4_DISP-CAL-S1_*.nc"))
+    if not output_files:
+        raise RuntimeError(f"No CalProduct found in {output_dir}")
+
+    out = output_files[0]
     print(f"  golden output: {out}")
     return out
 
 
 # Main
-
-
 def main() -> None:
     """Generate all golden dataset files and run the calibration workflow."""
-    global GOLDEN_DATA_DIR, GOLDEN_OUTPUT_DIR
+    global INPUT_DATA_DIR, CONFIGS_DIR, GOLDEN_OUTPUT_DIR
 
     args = _parse_args()
-    root = _resolve_output_dir(args.output_dir)
+    root = _resolve_output_dir(args.output_dir) / "golden_datasets"
 
-    GOLDEN_DATA_DIR = root / "golden"
+    INPUT_DATA_DIR = root / "input_data"
+    CONFIGS_DIR = root / "configs"
     GOLDEN_OUTPUT_DIR = root / "golden_output"
+    output_dir = root / "output"
 
     print("=== Generating golden dataset ===")
-    print(f"  inputs  → {GOLDEN_DATA_DIR}")
-    print(f"  output  → {GOLDEN_OUTPUT_DIR}")
+    print(f"  input_data    → {INPUT_DATA_DIR}")
+    print(f"  configs       → {CONFIGS_DIR}")
+    print(f"  golden_output → {GOLDEN_OUTPUT_DIR}")
+    print(f"  output        → {output_dir}")
     print()
 
     print("Creating DISP product...")
-    disp = create_disp(GOLDEN_DATA_DIR / "disp")
+    disp = create_disp(INPUT_DATA_DIR / "disp")
 
     print("Creating LOS GeoTIFF...")
-    los = create_los(GOLDEN_DATA_DIR)
+    los = create_los(INPUT_DATA_DIR / "static_input")
 
-    print("Creating water mask...")
-    create_water_mask(GOLDEN_DATA_DIR)
+    print("Creating DEM GeoTIFF...")
+    dem = create_dem(INPUT_DATA_DIR / "static_input")
+
+    print("Creating TROPO files...")
+    ref_tropo, sec_tropo = create_tropo(INPUT_DATA_DIR / "tropo")
 
     print("Creating GNSS files...")
-    gnss_lookup, gnss_dir = create_gnss(GOLDEN_DATA_DIR / "gnss")
+    gnss_lookup, gnss_dir = create_gnss(INPUT_DATA_DIR / "gnss")
 
     print("Creating algorithm parameters...")
-    params = create_algorithm_params(GOLDEN_DATA_DIR)
+    params = create_algorithm_params(CONFIGS_DIR)
+
+    print("Creating output directory...")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     print("Running calibration workflow...")
     try:
-        run_workflow(disp, los, gnss_lookup, gnss_dir, params, GOLDEN_OUTPUT_DIR)
+        run_workflow(
+            disp,
+            los,
+            dem,
+            gnss_lookup,
+            gnss_dir,
+            params,
+            [ref_tropo],
+            [sec_tropo],
+            GOLDEN_OUTPUT_DIR,
+        )
     except Exception as exc:
         print(f"\nERROR running workflow: {exc}", file=sys.stderr)
         print(
@@ -590,7 +721,7 @@ def main() -> None:
         sys.exit(1)
 
     print()
-    print(f"Done.  Set ${_ENV_VAR}={root} to enable integration tests.")
+    print(f"Done.  Deliver the contents of {root} to users for validation.")
 
 
 if __name__ == "__main__":

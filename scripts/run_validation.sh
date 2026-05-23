@@ -56,10 +56,12 @@ if [[ -z "${GOLDEN_DIR}" ]]; then
 fi
 
 GOLDEN_DIR="$(realpath "${GOLDEN_DIR}")"
-INPUT_DIR="${GOLDEN_DIR}/golden"
+INPUT_DIR="${GOLDEN_DIR}/input_data"
+CONFIGS_DIR="${GOLDEN_DIR}/configs"
 REFERENCE_DIR="${GOLDEN_DIR}/golden_output"
+OUTPUT_DIR="${GOLDEN_DIR}/output"
 
-for d in "${INPUT_DIR}" "${REFERENCE_DIR}"; do
+for d in "${INPUT_DIR}" "${CONFIGS_DIR}" "${REFERENCE_DIR}"; do
     if [[ ! -d "${d}" ]]; then
         echo "ERROR: Expected directory not found: ${d}" >&2
         echo "Make sure --golden-dir points to the root produced by" >&2
@@ -69,13 +71,20 @@ for d in "${INPUT_DIR}" "${REFERENCE_DIR}"; do
 done
 
 DISP_FILE=$(find "${INPUT_DIR}/disp" -name "OPERA_L3_DISP-S1_*.nc" -type f | head -n 1)
-LOS_FILE="${INPUT_DIR}/los.tif"
+LOS_FILE=$(find "${INPUT_DIR}/static_input" -name "*line_of_sight_enu.tif" -type f | head -n 1)
+DEM_FILE=$(find "${INPUT_DIR}/static_input" -name "*_dem.tif" -type f | head -n 1)
 LOOKUP_FILE="${INPUT_DIR}/gnss/grid_latlon_lookup.txt"
 GNSS_DIR="${INPUT_DIR}/gnss"
-ALGO_FILE="${INPUT_DIR}/algorithm_parameters.yaml"
-REFERENCE_NC=$(find "${REFERENCE_DIR}" -name "OPERA_L4_CAL-DISP-S1_*.nc" -type f | head -n 1)
+ALGO_FILE="${CONFIGS_DIR}/algorithm_parameters.yaml"
+REFERENCE_NC=$(find "${REFERENCE_DIR}" -name "OPERA_L4_DISP-CAL-S1_*.nc" -type f | head -n 1)
 
-for f in "${DISP_FILE}" "${LOS_FILE}" "${LOOKUP_FILE}" "${ALGO_FILE}" "${REFERENCE_NC}"; do
+# Tropo files — sorted by filename gives chronological order (ref then sec)
+mapfile -t TROPO_FILES < <(find "${INPUT_DIR}/tropo" -name "OPERA_L4_TROPO-ZENITH_*.nc" -type f | sort)
+REF_TROPO_FILE="${TROPO_FILES[0]:-}"
+SEC_TROPO_FILE="${TROPO_FILES[1]:-}"
+
+for f in "${DISP_FILE}" "${LOS_FILE}" "${DEM_FILE}" "${LOOKUP_FILE}" "${ALGO_FILE}" \
+         "${REFERENCE_NC}" "${REF_TROPO_FILE}" "${SEC_TROPO_FILE}"; do
     if [[ -z "${f}" || ! -f "${f}" ]]; then
         echo "ERROR: Required file not found: ${f:-<no match>}" >&2
         exit 1
@@ -92,12 +101,12 @@ fi
 # Parse frame-id from DISP filename  (e.g. F36540 -> 36540)
 FRAME_ID=$(basename "${DISP_FILE}" | grep -oP '(?<=_F)\d+')
 
-# Working and output directories
-WORK_DIR="${GOLDEN_DIR}/_validation_work"
-TEST_OUTPUT_DIR="${GOLDEN_DIR}/_validation_output"
+# Working and output directories (use the delivered layout)
+WORK_DIR="${GOLDEN_DIR}/output/_work"
+TEST_OUTPUT_DIR="${GOLDEN_DIR}/output"
 CONFIG_FILE="${WORK_DIR}/runconfig.yaml"
 
-rm -rf "${WORK_DIR}" "${TEST_OUTPUT_DIR}"
+rm -rf "${WORK_DIR}"
 mkdir -p "${WORK_DIR}" "${TEST_OUTPUT_DIR}"
 
 # Generate config
@@ -115,7 +124,10 @@ cal-disp config \
     -ud "${GNSS_DIR}" \
     -uv "0.3" \
     -ut "${UNR_TYPE}" \
-    --los-file "${LOS_FILE}" \
+    --los-file  "${LOS_FILE}" \
+    --dem-file  "${DEM_FILE}" \
+    --ref-tropo-files "${REF_TROPO_FILE}" \
+    --sec-tropo-files "${SEC_TROPO_FILE}" \
     -a  "${ALGO_FILE}" \
     --frame-id "${FRAME_ID}" \
     -o  "${TEST_OUTPUT_DIR}" \
@@ -126,7 +138,7 @@ cal-disp config \
 echo "[2/3] Running calibration..."
 cal-disp run "${CONFIG_FILE}"
 
-TEST_NC=$(find "${TEST_OUTPUT_DIR}" -name "OPERA_L4_CAL-DISP-S1_*.nc" -type f | head -n 1)
+TEST_NC=$(find "${TEST_OUTPUT_DIR}" -name "OPERA_L4_DISP-CAL-S1_*.nc" -type f | head -n 1)
 if [[ -z "${TEST_NC}" ]]; then
     echo "ERROR: Calibration produced no output NetCDF." >&2
     exit 1
@@ -148,7 +160,7 @@ else
     EXIT_CODE=1
 fi
 
-# Clean up scratch directories
-rm -rf "${WORK_DIR}" "${TEST_OUTPUT_DIR}"
+# Clean up scratch directory only; leave output/ intact for inspection
+rm -rf "${WORK_DIR}"
 
 exit "${EXIT_CODE}"

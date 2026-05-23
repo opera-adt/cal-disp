@@ -59,6 +59,30 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
         runconfig.dynamic_ancillary_options.algorithm_parameters_file
     )
 
+    # Extract optional tropo file lists from dynamic ancillaries
+    dyn = runconfig.dynamic_ancillary_options
+    ref_tropo = (
+        [Path(f) for f in dyn.reference_tropo_files]
+        if dyn.reference_tropo_files
+        else None
+    )
+    sec_tropo = (
+        [Path(f) for f in dyn.secondary_tropo_files]
+        if dyn.secondary_tropo_files
+        else None
+    )
+
+    # Extract optional static ancillary GeoJSON databases for event masking
+    sta = runconfig.static_ancillary_options
+    defo_area_db = (
+        Path(sta.deformation_area_database_json)
+        if (sta and sta.deformation_area_database_json)
+        else None
+    )
+    event_db = (
+        Path(sta.event_database_json) if (sta and sta.event_database_json) else None
+    )
+
     # Run calibration
     output_file = run_calibration(
         disp_file=Path(runconfig.input_options.disp_file),
@@ -66,8 +90,12 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
         unr_timeseries_dir=Path(runconfig.input_options.unr_timeseries_dir),
         output_dir=runconfig.output_directory,
         algorithm_parameters=algo_params,
-        dem_file=Path(runconfig.dynamic_ancillary_options.dem_file),
-        los_file=Path(runconfig.dynamic_ancillary_options.los_file),
+        dem_file=Path(dyn.dem_file),
+        los_file=Path(dyn.los_file),
+        reference_tropo_files=ref_tropo,
+        secondary_tropo_files=sec_tropo,
+        defo_area_db_json=defo_area_db,
+        event_db_json=event_db,
         block_shape=runconfig.worker_settings.block_shape,
         n_workers=runconfig.worker_settings.n_workers,
         threads_per_worker=runconfig.worker_settings.threads_per_worker,
