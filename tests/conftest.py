@@ -110,6 +110,14 @@ def sample_disp_product(tmp_path: Path) -> Path:
     )
     filepath = tmp_path / filename
     ds.to_netcdf(filepath, engine="h5netcdf")
+
+    import h5py
+
+    with h5py.File(filepath, "a") as f:
+        ident = f.create_group("identification")
+        ident.create_dataset("radar_wavelength", data=np.float32(0.05546))
+        ident["radar_wavelength"].attrs["units"] = "m"
+
     return filepath
 
 
@@ -186,6 +194,13 @@ def sample_disp_product_with_corrections(tmp_path: Path) -> Path:
 
     ds.to_netcdf(filepath, engine="h5netcdf")
     ds_corr.to_netcdf(filepath, group="corrections", mode="a", engine="h5netcdf")
+
+    import h5py
+
+    with h5py.File(filepath, "a") as f:
+        ident = f.create_group("identification")
+        ident.create_dataset("radar_wavelength", data=np.float32(0.05546))
+        ident["radar_wavelength"].attrs["units"] = "m"
 
     return filepath
 

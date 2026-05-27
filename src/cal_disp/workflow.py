@@ -35,12 +35,12 @@ def _build_event_mask(
     event_db: Path | None,
     mask_dir: Path,
 ) -> Path | None:
-    """Generate and combine event/deformation masks from GeoJSON databases.
+    """Generate and combine event/deformation masks from GeoJSON database.
 
-    Runs ``generate_event_mask`` for each available GeoJSON, selects only
-    features whose ``frame_id`` and ``event_date`` overlap the DISP product
-    epoch, and ANDs the results into a single combined mask GeoTIFF
-    (1 = valid, 0 = masked).  Returns ``None`` when no database is provided.
+    For each available GeoJSON, selects only features whose ``frame_id``
+    and ``event_date`` overlap the DISP product epoch, and ANDs the results
+    into a single combined mask GeoTIFF (1 = valid, 0 = masked).
+    Returns ``None`` when no database is provided.
     """
     from cal_disp.prep.generate_event_mask import generate_event_mask
 
@@ -65,7 +65,6 @@ def _build_event_mask(
     if len(mask_paths) == 1:
         return mask_paths[0]
 
-    # AND all individual masks: a pixel is valid only if valid in every mask
     combined = mask_dir / "combined_event_mask.tif"
     with rasterio.open(mask_paths[0]) as src:
         combined_mask = src.read(1).astype(bool)
@@ -76,6 +75,30 @@ def _build_event_mask(
     with rasterio.open(combined, "w", **meta) as dst:
         dst.write(combined_mask.astype(np.uint8)[np.newaxis])
     return combined
+
+
+def _read_wavelength_m(disp_file: Path) -> float:
+    """Read the radar wavelength in meters from a DISP product file.
+
+    Returns ~0.05546 for Sentinel-1 C-band.
+    """
+    from netCDF4 import Dataset  # type: ignore[import-untyped]
+
+    try:
+        with Dataset(disp_file, "r") as nc:
+            ident_group = nc.groups["identification"]
+            wl_m = float(ident_group.variables["radar_wavelength"][:])
+            wl_units = getattr(ident_group.variables["radar_wavelength"], "units", "m")
+        logger.debug(
+            "Read radar_wavelength %.6f %s from %s", wl_m, wl_units, disp_file.name
+        )
+        return wl_m
+    except Exception as e:
+        msg = (
+            f"Could not read /identification/radar_wavelength from {disp_file.name}. "
+            "Ensure the file is a valid DISP product with an /identification group."
+        )
+        raise RuntimeError(msg) from e
 
 
 def _date_to_decimal_year(dt: datetime) -> float:
@@ -162,11 +185,7 @@ def _compute_gnss_los(
     cache_dir: Path,
     reference_frame: str,
 ) -> np.ndarray:
-    """Return GNSS displacement projected into LOS (mm).
-
-    For the ``constant`` grid type the velocity field is computed once and
-    cached; subsequent calls load from the cache.
-    """
+    """Return GNSS displacement projected into LOS in meters."""
     if grid_type == "constant":
         cache = cache_dir / f"gnss_los_velocity_{reference_frame}.npy"
         if cache.exists():
@@ -185,20 +204,24 @@ def _compute_gnss_los(
             )
             np.save(cache, gnss_velocity)
             logger.info("Cached GNSS LOS velocity to %s", cache)
-        # Scale velocity (mm/yr) to the acquisition interval (yr)
-        return gnss_velocity * (sec_decimal - ref_decimal)
+        # Scale velocity (mm/yr) by acquisition interval (yr), then mm to m
+        return gnss_velocity * (sec_decimal - ref_decimal) / 1000.0
 
     # variable: epoch-specific displacement
     logger.info(
         "Computing GNSS LOS displacement (%.4f → %.4f)...", ref_decimal, sec_decimal
     )
-    return gnss_ref.compute_displacement_los(
-        ref_date=ref_decimal,
-        sec_date=sec_decimal,
-        los_east=los_east,
-        los_north=los_north,
-        los_up=los_up,
-        netcdf_file=disp_file,
+    # mm to m
+    return (
+        gnss_ref.compute_displacement_los(
+            ref_date=ref_decimal,
+            sec_date=sec_decimal,
+            los_east=los_east,
+            los_north=los_north,
+            los_up=los_up,
+            netcdf_file=disp_file,
+        )
+        / 1000.0
     )
 
 
@@ -404,10 +427,10 @@ def run_calibration(
         reference_frame=cal.reference_frame,
     )
 
-    # Prepare displacement array (mm, 2-D)
+    # Prepare displacement array.
     # A single DISP file encodes one (ref_date, sec_date) pair.
     # displacement is 2-D (y, x); time is a length-1 coordinate.
-    disp_2d = ds_disp.displacement.values * 1000.0  # m → mm
+    disp_2d = ds_disp.displacement.values.astype(np.float32)
 
     # Build valid-pixel mask
     mask = ~np.isnan(disp_2d)
@@ -438,19 +461,20 @@ def run_calibration(
     if cal.unwrap_error_correction:
         from venti.unwrap import correct_region_offset
 
-        _WAVELENGTH_MM = 0.0555 / 2 * 1000  # S1 C-band half-wavelength
-        logger.info("Applying unwrap-error correction...")
+        wavelength_m = _read_wavelength_m(disp_file)
+        logger.info(
+            "Applying unwrap-error correction (wavelength=%.5f m)...",
+            wavelength_m,
+        )
         disp_masked = correct_region_offset(
             input_disp=disp_masked,
             mask=mask,
-            wavelength=_WAVELENGTH_MM,
+            wavelength=wavelength_m,
         )
         if isinstance(disp_masked, np.ma.MaskedArray):
             disp_masked = disp_masked.filled(np.nan)
 
     # Optional tropospheric correction
-    # Form the differential (secondary − reference) on the fly, matching the
-    # DISP-S1 sign convention used in venti's calibration workflow.
     _tropo_applied = False
     if reference_tropo_files and secondary_tropo_files:
         if dem_file is None:
@@ -470,11 +494,11 @@ def run_calibration(
             output_dir=tropo_dir,
         )
         with rasterio.open(ref_tropo_path) as _src:
-            ref_tropo_m = _src.read(1).astype(np.float32)
+            ref_tropo = _src.read(1).astype(np.float32)
         with rasterio.open(sec_tropo_path) as _src:
-            sec_tropo_m = _src.read(1).astype(np.float32)
-        tropo_corr_mm = (sec_tropo_m - ref_tropo_m) * 1000.0  # m → mm
-        disp_masked = np.where(mask, disp_masked - tropo_corr_mm, np.nan)
+            sec_tropo = _src.read(1).astype(np.float32)
+        tropo_corr = sec_tropo - ref_tropo  # differential LOS delay (meters)
+        disp_masked = np.where(mask, disp_masked - tropo_corr, np.nan)
         _tropo_applied = True
         logger.info("Tropospheric correction applied.")
 
@@ -537,8 +561,8 @@ def run_calibration(
     if ds_factor > 1:
         cal_surface = upsample_array(cal_surface, original_shape)
 
-    # Convert back to metres and insert time dimension
-    cal_surface_m = (cal_surface / 1000.0).astype(np.float32)
+    # Insert time dimension
+    cal_surface_m = cal_surface.astype(np.float32)
 
     coords = {"time": time, "y": y, "x": x}
     calibration = xr.DataArray(
