@@ -241,7 +241,7 @@ def validate_golden_cli(
     shutil.rmtree(work_dir, ignore_errors=True)
 
     if success:
-        click.echo("\n✓ Validation passed.")
+        click.echo("\nValidation passed.")
     else:
-        click.echo("\n✗ Validation FAILED. See above for details.", err=True)
+        click.echo("\nValidation FAILED.", err=True)
         raise click.Abort()

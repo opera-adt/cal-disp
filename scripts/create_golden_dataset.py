@@ -94,7 +94,7 @@ EPSG = 32611  # WGS 84 / UTM zone 11N
 X0 = 405000.0
 Y0 = 3778000.0
 
-# Acquisition dates taken directly from real frame-36540 test file
+# Acquisition dates
 REF_DATETIME = datetime(2016, 7, 24, 1, 58, 9, tzinfo=timezone.utc)
 SEC_DATETIME = datetime(2016, 8, 5, 1, 58, 9, tzinfo=timezone.utc)
 FRAME_ID = 36540
@@ -109,7 +109,7 @@ LOS_FILENAME = (
 )
 DEM_FILENAME = f"OPERA_L3_DISP-S1-STATIC_F{FRAME_ID:05d}_20140403_S1A_v1.0_dem.tif"
 
-# Tropo filenames — sensing time matches DISP dates so matches_date() passes
+# Tropo filenames
 _TROPO_PROD = "20250101T000000Z"
 REF_TROPO_FILENAME = (
     f"OPERA_L4_TROPO-ZENITH_{REF_DATETIME:%Y%m%dT%H%M%S}Z_{_TROPO_PROD}_HRES_v1.0.nc"
@@ -118,7 +118,7 @@ SEC_TROPO_FILENAME = (
     f"OPERA_L4_TROPO-ZENITH_{SEC_DATETIME:%Y%m%dT%H%M%S}Z_{_TROPO_PROD}_HRES_v1.0.nc"
 )
 
-RNG = np.random.default_rng(0)  # fully deterministic
+RNG = np.random.default_rng(0)
 
 
 # Helper: CRS WKT for EPSG:32611
@@ -176,7 +176,7 @@ def create_disp(out_dir: Path) -> Path:
         (x - x.mean()) / (NX * SPACING),
         (y - y.mean()) / (NY * SPACING),
     )
-    ramp = 0.005 * xx + 0.003 * yy  # metres
+    ramp = 0.005 * xx + 0.003 * yy  # meters
 
     # Gaussian blob simulating localised deformation
     r2 = xx**2 + yy**2
@@ -357,6 +357,15 @@ def create_disp(out_dir: Path) -> Path:
 
     out = out_dir / DISP_FILENAME
     ds.to_netcdf(out, engine="h5netcdf")
+
+    # Add /identification/radar_wavelength (Sentinel-1 C-band)
+    import h5py
+
+    with h5py.File(out, "a") as f:
+        ident = f.create_group("identification")
+        ident.create_dataset("radar_wavelength", data=np.float32(0.05546))
+        ident["radar_wavelength"].attrs["units"] = "m"
+
     print(f"  created {out.name}")
     return out
 
@@ -577,10 +586,10 @@ def create_algorithm_params(out_dir: Path) -> Path:
     AlgorithmParameters(
         calibration_options=CalibrationOptions(
             posting_meters=SPACING,
-            window_size_meters=1500.0,  # 50-pixel window on 200×200 grid
+            window_size_meters=15000.0,
             downsample_factor=1,
             calibration_surface_smoothing_sigma=0,
-            grid_type="constant",  # deterministic; no epoch-specific GNSS call
+            grid_type="constant",
         )
     ).to_yaml(params_file, with_comments=False)
 
@@ -671,10 +680,10 @@ def main() -> None:
     output_dir = root / "output"
 
     print("=== Generating golden dataset ===")
-    print(f"  input_data    → {INPUT_DATA_DIR}")
-    print(f"  configs       → {CONFIGS_DIR}")
-    print(f"  golden_output → {GOLDEN_OUTPUT_DIR}")
-    print(f"  output        → {output_dir}")
+    print(f"  input_data    {INPUT_DATA_DIR}")
+    print(f"  configs       {CONFIGS_DIR}")
+    print(f"  golden_output {GOLDEN_OUTPUT_DIR}")
+    print(f"  output        {output_dir}")
     print()
 
     print("Creating DISP product...")
@@ -721,7 +730,7 @@ def main() -> None:
         sys.exit(1)
 
     print()
-    print(f"Done.  Deliver the contents of {root} to users for validation.")
+    print(f"Done.  Golden data generated at {root}")
 
 
 if __name__ == "__main__":
