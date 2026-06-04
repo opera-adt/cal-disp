@@ -98,8 +98,8 @@ def validate_golden_cli(
 ) -> None:
     r"""Re-run the calibration on golden inputs and compare against the reference.
 
-    GOLDEN_DIR is the root directory produced by create_golden_dataset.py or
-    build_golden_output.sh.  It must contain:
+    GOLDEN_DIR is the root directory produced by build_golden_output.sh.
+    It must contain:
 
     \b
       input_data/    calibration inputs (disp, gnss, static_input, tropo)
@@ -111,11 +111,11 @@ def validate_golden_cli(
     --------
     Validate a delivered golden dataset:
 
-        cal-disp validate-golden /path/to/golden_datasets
+        cal-disp validate-golden /path/to/golden_dataset
 
     With custom tolerance:
 
-        cal-disp validate-golden /path/to/golden_datasets --tolerance 1e-5
+        cal-disp validate-golden /path/to/golden_dataset --tolerance 1e-5
 
     """
     import subprocess
@@ -137,25 +137,33 @@ def validate_golden_cli(
         if not d.is_dir():
             raise click.ClickException(
                 f"Expected directory not found: {d}\n"
-                "Make sure GOLDEN_DIR was produced by create_golden_dataset.py "
-                "or build_golden_output.sh."
+                "Make sure GOLDEN_DIR was produced by build_golden_output.sh."
             )
+
+    import re
 
     # Locate required input files
     disp_files = sorted((input_dir / "disp").glob("OPERA_L3_DISP-S1_*.nc"))
     los_files = sorted((input_dir / "static_input").glob("*line_of_sight_enu.tif"))
     dem_files = sorted((input_dir / "static_input").glob("*_dem.tif"))
     tropo_files = sorted((input_dir / "tropo").glob("OPERA_L4_TROPO-ZENITH_*.nc"))
-    lookup_file = input_dir / "gnss" / "grid_latlon_lookup.txt"
     algo_file = configs_dir / "algorithm_parameters.yaml"
     ref_files = sorted(reference_dir.glob("OPERA_L4_DISP-CAL-S1_*.nc"))
+
+    # Lookup file encodes its version: grid_latlon_lookup_v{ver}.txt
+    gnss_dir = input_dir / "gnss"
+    lookup_files = sorted(gnss_dir.glob("grid_latlon_lookup_v*.txt"))
+    lookup_file = lookup_files[0] if lookup_files else Path()
 
     for label, collection in [
         ("DISP file", disp_files),
         ("LOS file", los_files),
         ("DEM file", dem_files),
         ("TROPO files (need 2)", tropo_files if len(tropo_files) == 2 else []),
-        ("UNR lookup", [lookup_file] if lookup_file.exists() else []),
+        (
+            "UNR lookup (grid_latlon_lookup_v*.txt)",
+            [lookup_file] if lookup_file.exists() else [],
+        ),
         ("algorithm params", [algo_file] if algo_file.exists() else []),
         ("golden reference", ref_files),
     ]:
@@ -164,6 +172,15 @@ def validate_golden_cli(
 
     disp_file = disp_files[0]
     frame_id = disp_file.stem.split("_F")[1].split("_")[0].lstrip("0") or "0"
+
+    # Parse UNR version from lookup filename (e.g. grid_latlon_lookup_v0.3.txt → "0.3")
+    _v_match = re.search(r"v(\d+(?:\.\d+)+)", lookup_file.name)
+    if not _v_match:
+        raise click.ClickException(
+            f"Cannot determine UNR version from lookup filename '{lookup_file.name}'. "
+            "Expected format: grid_latlon_lookup_v<version>.txt"
+        )
+    unr_version = _v_match.group(1)
 
     # Parse UNR type from algorithm parameters
     unr_type = "constant"
@@ -192,7 +209,7 @@ def validate_golden_cli(
             "-ud",
             str(input_dir / "gnss"),
             "-uv",
-            "0.3",
+            unr_version,
             "-ut",
             unr_type,
             "--los-file",

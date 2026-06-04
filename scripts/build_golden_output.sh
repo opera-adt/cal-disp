@@ -2,9 +2,7 @@
 # build_golden_output.sh
 #
 # Generate a golden dataset from REAL downloaded OPERA data.
-# Use this for manual validation that the pipeline processes actual products
-# correctly.  For lightweight automated CI testing use create_golden_dataset.py
-# instead, which creates small synthetic inputs without any network access.
+# Use this for manual validation that the pipeline processes actual products correctly.
 #
 # Prerequisites
 # -------------

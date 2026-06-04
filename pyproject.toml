@@ -38,7 +38,7 @@ dependencies = [
   "click",
   "matplotlib",
   "opera-utils",
-  "venti @ git+https://github.com/opera-adt/Venti@cal_workflow",
+  "venti @ git+https://github.com/opera-adt/Venti",
 ]
 
 [project.urls]

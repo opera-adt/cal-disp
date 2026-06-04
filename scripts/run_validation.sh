@@ -13,8 +13,7 @@
 # Options
 #   --golden-dir DIR    Root directory of the golden dataset (required).
 #                       Must contain golden/ and golden_output/ subdirectories
-#                       as produced by create_golden_dataset.py or
-#                       build_golden_output.sh.
+#                       as produced by build_golden_output.sh.
 #   --tolerance FLOAT   Floating-point tolerance passed to cal-disp validate.
 #                       Default: 1e-6.
 #   --group GROUP       Which product group to validate: main, auxiliary, all.
@@ -64,8 +63,7 @@ OUTPUT_DIR="${GOLDEN_DIR}/output"
 for d in "${INPUT_DIR}" "${CONFIGS_DIR}" "${REFERENCE_DIR}"; do
     if [[ ! -d "${d}" ]]; then
         echo "ERROR: Expected directory not found: ${d}" >&2
-        echo "Make sure --golden-dir points to the root produced by" >&2
-        echo "create_golden_dataset.py or build_golden_output.sh." >&2
+        echo "Make sure --golden-dir points to the root produced by build_golden_output.sh." >&2
         exit 1
     fi
 done
@@ -73,7 +71,7 @@ done
 DISP_FILE=$(find "${INPUT_DIR}/disp" -name "OPERA_L3_DISP-S1_*.nc" -type f | head -n 1)
 LOS_FILE=$(find "${INPUT_DIR}/static_input" -name "*line_of_sight_enu.tif" -type f | head -n 1)
 DEM_FILE=$(find "${INPUT_DIR}/static_input" -name "*_dem.tif" -type f | head -n 1)
-LOOKUP_FILE="${INPUT_DIR}/gnss/grid_latlon_lookup.txt"
+LOOKUP_FILE=$(find "${INPUT_DIR}/gnss" -name "grid_latlon_lookup_v*.txt" -type f | head -n 1)
 GNSS_DIR="${INPUT_DIR}/gnss"
 ALGO_FILE="${CONFIGS_DIR}/algorithm_parameters.yaml"
 REFERENCE_NC=$(find "${REFERENCE_DIR}" -name "OPERA_L4_DISP-CAL-S1_*.nc" -type f | head -n 1)
@@ -91,8 +89,14 @@ for f in "${DISP_FILE}" "${LOS_FILE}" "${DEM_FILE}" "${LOOKUP_FILE}" "${ALGO_FIL
     fi
 done
 
-# Parse frame-id and unr-type from the algorithm parameters file
-# Read unr grid type (constant/variable) if present, else default to constant
+# Parse UNR version from lookup filename (e.g. grid_latlon_lookup_v0.3.txt → "0.3")
+UNR_VERSION=$(basename "${LOOKUP_FILE}" | grep -oP 'v\K[\d.]+')
+if [[ -z "${UNR_VERSION}" ]]; then
+    echo "ERROR: Cannot determine UNR version from lookup filename: $(basename "${LOOKUP_FILE}")" >&2
+    exit 1
+fi
+
+# Parse unr grid type (constant/variable) from algorithm parameters, default to constant
 UNR_TYPE="constant"
 if grep -q "grid_type" "${ALGO_FILE}" 2>/dev/null; then
     UNR_TYPE=$(grep "grid_type" "${ALGO_FILE}" | awk '{print $2}' | tr -d '"' | head -n 1)
@@ -114,6 +118,7 @@ echo "=== Running validation ==="
 echo "  golden inputs : ${INPUT_DIR}"
 echo "  reference     : $(basename "${REFERENCE_NC}")"
 echo "  frame         : ${FRAME_ID}"
+echo "  unr-version   : ${UNR_VERSION}"
 echo "  unr-type      : ${UNR_TYPE}"
 echo ""
 
@@ -122,7 +127,7 @@ cal-disp config \
     -d  "${DISP_FILE}" \
     -ul "${LOOKUP_FILE}" \
     -ud "${GNSS_DIR}" \
-    -uv "0.3" \
+    -uv "${UNR_VERSION}" \
     -ut "${UNR_TYPE}" \
     --los-file  "${LOS_FILE}" \
     --dem-file  "${DEM_FILE}" \

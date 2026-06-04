@@ -172,59 +172,6 @@ def _setup_gnss_reference(
     return gnss_ref
 
 
-def _compute_gnss_los(
-    gnss_ref,
-    los_east: np.ndarray,
-    los_north: np.ndarray,
-    los_up: np.ndarray,
-    disp_file: Path,
-    ref_decimal: float,
-    sec_decimal: float,
-    grid_type: str,
-    starting_year: float,
-    cache_dir: Path,
-    reference_frame: str,
-) -> np.ndarray:
-    """Return GNSS displacement projected into LOS in meters."""
-    if grid_type == "constant":
-        cache = cache_dir / f"gnss_los_velocity_{reference_frame}.npy"
-        if cache.exists():
-            logger.info("Loading cached GNSS LOS velocity from %s", cache)
-            gnss_velocity = np.load(cache)
-        else:
-            logger.info(
-                "Computing GNSS LOS velocity (starting_year=%.1f)...", starting_year
-            )
-            gnss_velocity = gnss_ref.compute_velocity_los(
-                los_east=los_east,
-                los_north=los_north,
-                los_up=los_up,
-                netcdf_file=disp_file,
-                start_year=starting_year,
-            )
-            np.save(cache, gnss_velocity)
-            logger.info("Cached GNSS LOS velocity to %s", cache)
-        # Scale velocity (mm/yr) by acquisition interval (yr), then mm to m
-        return gnss_velocity * (sec_decimal - ref_decimal) / 1000.0
-
-    # variable: epoch-specific displacement
-    logger.info(
-        "Computing GNSS LOS displacement (%.4f → %.4f)...", ref_decimal, sec_decimal
-    )
-    # mm to m
-    return (
-        gnss_ref.compute_displacement_los(
-            ref_date=ref_decimal,
-            sec_date=sec_decimal,
-            los_east=los_east,
-            los_north=los_north,
-            los_up=los_up,
-            netcdf_file=disp_file,
-        )
-        / 1000.0
-    )
-
-
 # Public entry point
 def run_calibration(
     disp_file: Path,
@@ -409,22 +356,26 @@ def run_calibration(
     logger.info("Loading LOS unit vectors: %s", los_file.name)
     los_east, los_north, los_up = _load_los_bands(los_file)
 
-    # Compute GNSS LOS reference (mm)
+    # Compute GNSS LOS reference
+    from venti.gnss import compute_gnss_los
+
     ref_decimal = _date_to_decimal_year(disp_product.reference_date)
     sec_decimal = _date_to_decimal_year(disp_product.secondary_date)
 
-    gnss_los = _compute_gnss_los(
-        gnss_ref=gnss_ref,
-        los_east=los_east,
-        los_north=los_north,
-        los_up=los_up,
-        disp_file=disp_file,
-        ref_decimal=ref_decimal,
-        sec_decimal=sec_decimal,
-        grid_type=cal.grid_type,
-        starting_year=cal.starting_year,
-        cache_dir=gnss_dir,
-        reference_frame=cal.reference_frame,
+    gnss_los = (
+        compute_gnss_los(
+            gnss_ref=gnss_ref,
+            los_east=los_east,
+            los_north=los_north,
+            los_up=los_up,
+            netcdf_file=disp_file,
+            grid_type=cal.grid_type,
+            cache_dir=gnss_dir,
+            ref_date=ref_decimal,
+            sec_date=sec_decimal,
+            starting_year=cal.starting_year,
+        )
+        / 1000.0
     )
 
     # Prepare displacement array.
@@ -473,34 +424,6 @@ def run_calibration(
         )
         if isinstance(disp_masked, np.ma.MaskedArray):
             disp_masked = disp_masked.filled(np.nan)
-
-    # Optional tropospheric correction
-    _tropo_applied = False
-    if reference_tropo_files and secondary_tropo_files:
-        if dem_file is None:
-            raise ValueError(
-                "dem_file is required when tropospheric correction files are provided"
-            )
-        from cal_disp.prep.tropo import prepare_troposphere_correction
-
-        logger.info("Preparing tropospheric correction (ref + sec)...")
-        tropo_dir = work_directory / "troposphere"
-        ref_tropo_path, sec_tropo_path = prepare_troposphere_correction(
-            disp_file=disp_file,
-            dem_file=dem_file,
-            los_file=los_file,
-            reference_tropo_files=reference_tropo_files,
-            secondary_tropo_files=secondary_tropo_files,
-            output_dir=tropo_dir,
-        )
-        with rasterio.open(ref_tropo_path) as _src:
-            ref_tropo = _src.read(1).astype(np.float32)
-        with rasterio.open(sec_tropo_path) as _src:
-            sec_tropo = _src.read(1).astype(np.float32)
-        tropo_corr = sec_tropo - ref_tropo  # differential LOS delay (meters)
-        disp_masked = np.where(mask, disp_masked - tropo_corr, np.nan)
-        _tropo_applied = True
-        logger.info("Tropospheric correction applied.")
 
     # Fit calibration surface
     spatial_processor = SpatialProcessor()
@@ -561,8 +484,38 @@ def run_calibration(
     if ds_factor > 1:
         cal_surface = upsample_array(cal_surface, original_shape)
 
-    # Insert time dimension
     cal_surface_m = cal_surface.astype(np.float32)
+
+    # Optional tropospheric correction: prepare and apply to calibration surface
+    _tropo_applied = False
+    tropo_corr: np.ndarray | None = None
+    if reference_tropo_files and secondary_tropo_files:
+        if dem_file is None:
+            raise ValueError(
+                "dem_file is required when tropospheric correction files are provided"
+            )
+        from cal_disp.prep.tropo import prepare_troposphere_correction
+
+        logger.info("Preparing tropospheric correction (ref + sec)...")
+        tropo_dir = work_directory / "troposphere"
+        ref_tropo_path, sec_tropo_path = prepare_troposphere_correction(
+            disp_file=disp_file,
+            dem_file=dem_file,
+            los_file=los_file,
+            reference_tropo_files=reference_tropo_files,
+            secondary_tropo_files=secondary_tropo_files,
+            output_dir=tropo_dir,
+        )
+        with rasterio.open(ref_tropo_path) as _src:
+            ref_tropo = _src.read(1).astype(np.float32)
+        with rasterio.open(sec_tropo_path) as _src:
+            sec_tropo = _src.read(1).astype(np.float32)
+        tropo_corr = sec_tropo - ref_tropo  # differential LOS delay (meters)
+        cal_surface_m = cal_surface_m + tropo_corr
+        _tropo_applied = True
+        logger.info("Tropospheric correction applied to calibration surface.")
+
+    # Insert time dimension
 
     coords = {"time": time, "y": y, "x": x}
     calibration = xr.DataArray(
