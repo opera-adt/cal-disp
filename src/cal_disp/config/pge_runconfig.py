@@ -27,7 +27,7 @@ class PrimaryExecutable(YamlModel):
     """
 
     product_type: str = Field(
-        default="CAL_DISP",
+        default="DISP_CAL",
         description="Product type of the PGE.",
     )
 

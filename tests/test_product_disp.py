@@ -173,7 +173,7 @@ class TestDispProductDataAccess:
         product = DispProduct.from_path(sample_disp_product_with_corrections)
         epsg = product.get_epsg()
 
-        assert epsg == 32615  # UTM zone 15N
+        assert epsg == 32611  # UTM zone 11N
 
     def test_get_bounds(self, sample_disp_product_with_corrections: Path):
         """Should get native bounds."""

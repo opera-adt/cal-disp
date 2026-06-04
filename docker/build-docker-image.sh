@@ -6,17 +6,17 @@ set -o pipefail
 readonly USAGE="usage: $0 [-t TAG] [-u USER_ID] [-b BASE]"
 readonly HELP="$USAGE
 
-Build the docker image for opera_tropo.
+Build the Docker image for cal-disp.
 
 options:
-  -t, --tag TAG        Docker image name/tag (default: opera-adt/tropo:latest)
+  -t, --tag TAG        Docker image name/tag (default: opera-adt/cal-disp:latest)
   -u, --user-id ID     User ID for docker image (default: 1000)
   -b, --base BASE      Base image (default: ubuntu:22.04)
   -h, --help           Show this help and exit
 "
 
 # Defaults
-tag="opera-adt/opera_adt:latest"
+tag="opera-adt/cal-disp:latest"
 base=""
 user_id=""
 

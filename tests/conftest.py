@@ -54,25 +54,44 @@ def sample_grid_type() -> str:
 @pytest.fixture
 def sample_disp_product(tmp_path: Path) -> Path:
     """Create a mock DISP-S1 product file."""
-    ny, nx = 100, 100
+    # UTM zone 11N coordinates covering the mock GNSS stations at
+    # lon=-118.0 to -117.9°W, lat=34.0 to 34.1°N (≈ easting 408k-417k,
+    # northing 3763k-3774k in UTM 11N).  Use 100 m spacing so 200×200
+    # pixels spans 20 km and comfortably contains all four stations.
+    ny, nx = 200, 200
+    x_origin, y_origin, spacing = 405000.0, 3778000.0, 100.0
+    x_coords = np.arange(nx) * spacing + x_origin
+    y_coords = np.arange(ny) * (-spacing) + y_origin
+
+    spatial_ref = xr.DataArray(
+        0,
+        attrs={
+            "crs_wkt": (
+                'PROJCS["WGS 84 / UTM zone 11N",'
+                'GEOGCS["WGS 84",DATUM["WGS_1984",'
+                'SPHEROID["WGS 84",6378137,298.257223563]],'
+                'PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],'
+                'PROJECTION["Transverse_Mercator"],'
+                'PARAMETER["latitude_of_origin",0],'
+                'PARAMETER["central_meridian",-117],'
+                'PARAMETER["scale_factor",0.9996],'
+                'PARAMETER["false_easting",500000],'
+                'PARAMETER["false_northing",0],UNIT["metre",1]]'
+            ),
+            "GeoTransform": f"{x_origin} {spacing} 0.0 {y_origin} 0.0 -{spacing}",
+        },
+    )
 
     ds = xr.Dataset(
         {
             "displacement": (["y", "x"], np.random.randn(ny, nx)),
             "temporal_coherence": (["y", "x"], np.random.uniform(0.3, 0.9, (ny, nx))),
             "conncomp": (["y", "x"], np.ones((ny, nx), dtype=np.uint16)),
-            "latitude": (
-                ["y", "x"],
-                np.linspace(34.0, 35.0, ny)[:, None] * np.ones((ny, nx)),
-            ),
-            "longitude": (
-                ["y", "x"],
-                np.linspace(-118.0, -117.0, nx)[None, :] * np.ones((ny, nx)),
-            ),
+            "spatial_ref": spatial_ref,
         },
         coords={
-            "y": np.arange(ny),
-            "x": np.arange(nx),
+            "y": y_coords,
+            "x": x_coords,
             "time": [datetime(2022, 7, 22, 0, 26, 57)],
         },
         attrs={
@@ -91,31 +110,42 @@ def sample_disp_product(tmp_path: Path) -> Path:
     )
     filepath = tmp_path / filename
     ds.to_netcdf(filepath, engine="h5netcdf")
+
+    import h5py
+
+    with h5py.File(filepath, "a") as f:
+        ident = f.create_group("identification")
+        ident.create_dataset("radar_wavelength", data=np.float32(0.05546))
+        ident["radar_wavelength"].attrs["units"] = "m"
+
     return filepath
 
 
 @pytest.fixture
 def sample_disp_product_with_corrections(tmp_path: Path) -> Path:
     """Create mock DISP product with corrections group."""
-    ny, nx = 50, 50
+    ny, nx = 200, 200
 
-    # Main group with spatial_ref
+    # Same UTM zone 11N extent as sample_disp_product so the same GNSS
+    # station fixtures (lon=-118°W to -117.9°W, lat=34°N to 34.1°N) are
+    # within bounds.
+    x_origin, y_origin, spacing = 405000.0, 3778000.0, 100.0
     spatial_ref = xr.DataArray(
         0,
         attrs={
             "crs_wkt": (
-                'PROJCS["WGS 84 / UTM zone 15N",'
+                'PROJCS["WGS 84 / UTM zone 11N",'
                 'GEOGCS["WGS 84",DATUM["WGS_1984",'
                 'SPHEROID["WGS 84",6378137,298.257223563]],'
                 'PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],'
                 'PROJECTION["Transverse_Mercator"],'
                 'PARAMETER["latitude_of_origin",0],'
-                'PARAMETER["central_meridian",-93],'
+                'PARAMETER["central_meridian",-117],'
                 'PARAMETER["scale_factor",0.9996],'
                 'PARAMETER["false_easting",500000],'
                 'PARAMETER["false_northing",0],UNIT["metre",1]]'
             ),
-            "GeoTransform": "100000.0 30.0 0.0 3500000.0 0.0 -30.0",
+            "GeoTransform": f"{x_origin} {spacing} 0.0 {y_origin} 0.0 -{spacing}",
         },
     )
 
@@ -126,8 +156,8 @@ def sample_disp_product_with_corrections(tmp_path: Path) -> Path:
             "spatial_ref": spatial_ref,
         },
         coords={
-            "y": np.arange(ny) * 30.0 + 3500000.0,
-            "x": np.arange(nx) * 30.0 + 100000.0,
+            "y": np.arange(ny) * (-spacing) + y_origin,
+            "x": np.arange(nx) * spacing + x_origin,
             "time": [datetime(2022, 7, 22, 0, 26, 57)],
         },
     )
@@ -150,8 +180,8 @@ def sample_disp_product_with_corrections(tmp_path: Path) -> Path:
             "reference_point": ref_point,
         },
         coords={
-            "y": np.arange(ny) * 30.0 + 3500000.0,
-            "x": np.arange(nx) * 30.0 + 100000.0,
+            "y": np.arange(ny) * (-spacing) + y_origin,
+            "x": np.arange(nx) * spacing + x_origin,
         },
     )
 
@@ -164,6 +194,13 @@ def sample_disp_product_with_corrections(tmp_path: Path) -> Path:
 
     ds.to_netcdf(filepath, engine="h5netcdf")
     ds_corr.to_netcdf(filepath, group="corrections", mode="a", engine="h5netcdf")
+
+    import h5py
+
+    with h5py.File(filepath, "a") as f:
+        ident = f.create_group("identification")
+        ident.create_dataset("radar_wavelength", data=np.float32(0.05546))
+        ident["radar_wavelength"].attrs["units"] = "m"
 
     return filepath
 
@@ -237,31 +274,37 @@ def sample_static_dem(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def sample_static_los(tmp_path: Path) -> Path:
-    """Create mock LOS static layer GeoTIFF with 3 bands."""
+    """Create mock LOS static layer GeoTIFF with 3 bands.
+
+    Must be 200×200 to match sample_disp_product: venti's _sample_on_points
+    asserts arr.shape == (len(y), len(x)) of the DISP dataset.
+    """
     try:
         import rasterio
         from rasterio.crs import CRS
         from rasterio.transform import from_bounds
 
-        # Create LOS unit vectors (east, north, up)
-        los_east = np.random.randn(100, 100).astype(np.float32) * 0.1
-        los_north = np.random.randn(100, 100).astype(np.float32) * 0.1
-        los_up = np.ones((100, 100), dtype=np.float32) * 0.9
+        ny, nx = 200, 200
+        los_east = np.random.randn(ny, nx).astype(np.float32) * 0.1
+        los_north = np.random.randn(ny, nx).astype(np.float32) * 0.1
+        los_up = np.ones((ny, nx), dtype=np.float32) * 0.9
 
         los_file = (
             tmp_path
             / "OPERA_L3_DISP-S1-STATIC_F08882_20140403_S1A_v1.0_line_of_sight_enu.tif"
         )
 
-        transform = from_bounds(-118, 34, -117, 35, 100, 100)
-        crs = CRS.from_epsg(4326)
+        # Match the UTM 11N extent of sample_disp_product
+        # (x_origin=405000, y_origin=3778000, spacing=100m, 200×200 px)
+        transform = from_bounds(405000, 3758000, 425000, 3778000, nx, ny)
+        crs = CRS.from_epsg(32611)
 
         with rasterio.open(
             los_file,
             "w",
             driver="GTiff",
-            height=100,
-            width=100,
+            height=ny,
+            width=nx,
             count=3,
             dtype=np.float32,
             crs=crs,
@@ -384,9 +427,11 @@ def sample_unr_data(tmp_path: Path) -> tuple[Path, Path]:
     tenv8_dir = tmp_path / "tenv8"
     tenv8_dir.mkdir()
 
-    # Create sample tenv8 files
+    # Create sample tenv8 files named {id:06d}_IGS20.tenv8 to match the
+    # filename pattern expected by venti's download_station() so that the
+    # pre-staged symlinks are reused without hitting the network.
     for grid_id in [1, 2, 3, 4]:
-        tenv8_file = tenv8_dir / f"{grid_id:06d}_TEST.tenv8"
+        tenv8_file = tenv8_dir / f"{grid_id:06d}_IGS20.tenv8"
         content = """2022.0000    0.0    0.0    0.0    1.0    1.0    1.0  0
 2022.0833    1.2    0.5    2.1    1.0    1.0    1.0  0
 2022.1667    2.4    1.0    4.2    1.0    1.0    1.0  0
@@ -401,24 +446,29 @@ def sample_unr_data(tmp_path: Path) -> tuple[Path, Path]:
 
 @pytest.fixture
 def sample_algorithm_params(tmp_path: Path) -> Path:
-    """Create sample algorithm parameters YAML file."""
-    params_content = """
-algorithm_parameters:
-  grid_search:
-    enabled: true
-    min_stations: 3
-    max_distance_km: 100
+    """Create sample algorithm parameters YAML file.
 
-  robust_estimation:
-    method: "huber"
-    outlier_threshold: 3.0
+    Parameters are tuned for the 200×200 test DISP grid (100 m spacing,
+    20 km × 20 km area) so that window sizing and downsampling make sense:
+    - posting_meters=100 matches the fixture pixel spacing
+    - window_size_meters=5000 → 50-pixel window (fits inside the 200-px grid)
+    - downsample_factor=1 disables downsampling (keeps 200×200 intact)
+    - calibration_surface_smoothing_sigma=0 disables post-smoothing
+    """
+    from cal_disp.config._algorithm import (
+        AlgorithmParameters,
+        CalibrationOptions,
+    )
 
-  quality_control:
-    min_coherence: 0.3
-    max_phase_std: 2.0
-"""
     params_file = tmp_path / "algorithm_params.yaml"
-    params_file.write_text(params_content)
+    AlgorithmParameters(
+        calibration_options=CalibrationOptions(
+            posting_meters=100.0,
+            window_size_meters=5000.0,
+            downsample_factor=1,
+            calibration_surface_smoothing_sigma=0,
+        )
+    ).to_yaml(params_file, with_comments=False)
     return params_file
 
 

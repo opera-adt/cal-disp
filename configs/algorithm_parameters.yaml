@@ -1,58 +1,111 @@
 # CAL-DISP Algorithm Parameters
 # Configuration for the calibration algorithm
-# Schema version: 0.1
-
-unwrap_correction:
-  # Whether to run the unwrapping error correction before calibration.
-  #   Type: boolean.
-  run_unwrap_correction: true
+# Schema version: 0.3
 
 calibration_options:
-  # Low pass method to get a long wavelength calibration plane.
+
+  # GNSS model type.
+  # 'constant' interpolates a single velocity field scaled to the acquisition
+  # interval.  'variable' fetches epoch-specific GNSS displacements for each
+  # (ref_date, sec_date) pair (requires more UNR data).
   #   Type: string.
-  #   Options: ['gaussian_fft', 'hanning_fft', 'savitsky_goley'].
-  cal_method: savitsky_goley
+  #   Options: ['constant', 'variable'].
+  grid_type: constant
 
-  # Whether to run gap filling interpolation step before lowpass.
+  # GNSS reference frame used for station timeseries.
+  #   Type: string.
+  #   Options: ['IGS20', 'IGS14'].
+  reference_frame: IGS20
+
+  # Earliest observation year included in velocity estimation.
+  # Only used when grid_type = 'constant'.
+  #   Type: float.
+  starting_year: 2014.0
+
+  # Apply watershed-based unwrap-error correction to the displacement field
+  # before fitting the calibration surface.
   #   Type: boolean.
-  run_interpolation: true
+  unwrap_error_correction: true
 
-  # Whether to downsample DISP before calibration.
-  #   Type: boolean.
-  run_downsample: true
+  # Side length of the moving window used for polynomial plane fitting, in
+  # metres.  A 30 km window at 30 m posting gives a 1000-pixel window.
+  #   Type: float.
+  #   Units: metres.
+  window_size_meters: 30000.0
 
-  # Downsampling factor for DISP.
+  # Input DISP pixel spacing in metres.  30 m for DISP-S1.
+  #   Type: float.
+  #   Units: metres.
+  posting_meters: 30.0
+
+  # Integer downsampling factor applied before surface fitting.
+  # Set to 1 to disable.  The calibration surface is upsampled back to full
+  # resolution after fitting.
   #   Type: integer.
-  #   Default: 10.
-  downsample_factor: 10
+  #   Default: 6.
+  downsample_factor: 6
 
-savitsky_goley_options:
-  # Moving window size for plane fitting along x-axis (columns).
-  #   Type: integer | null.
-  #   Units: pixels.
-  window_x_size:
+  # Pixel aggregation method used during downsampling.
+  #   Type: string.
+  #   Options: ['mean', 'median'].
+  downsample_method: mean
 
-  # Moving window size for plane fitting along y-axis (rows).
-  #   Type: integer | null.
-  #   Units: pixels.
-  window_y_size:
+  # Weight downsampling by temporal coherence.
+  # When true, the temporal_coherence layer from the DISP product is used as
+  # per-pixel weights during aggregation.  Falls back to unweighted
+  # downsampling if the layer is unavailable.
+  #   Type: boolean.
+  downsample_weighted: false
 
-  # Overlap for x-axis windows.
-  #   Type: integer | null.
-  #   Units: pixels.
-  window_overlap_x_size:
+  # Post-assembly low-pass filter applied to the stitched calibration surface
+  # to suppress window-boundary artefacts.
+  #   Type: string.
+  #   Options: ['gaussian', 'gaussian_fft', 'hanning_fft', 'savitzky_golay'].
+  #   Default: 'gaussian'.
+  calibration_surface_smoothing_method: gaussian
 
-  # Overlap for y-axis windows.
-  #   Type: integer | null.
-  #   Units: pixels.
-  window_overlap_y_size:
+  # Sigma (pixels) for gaussian and FFT smoothing methods.
+  # null  → auto-selects window_size_pixels / 8 (recommended).
+  # 0     → disables smoothing entirely.
+  # Ignored when calibration_surface_smoothing_method = 'savitzky_golay'.
+  #   Type: float | null.
+  calibration_surface_smoothing_sigma:
 
-  # Moving x-axis window buffer to extend kernel.
-  #   Type: integer | null.
-  #   Units: pixels.
-  window_extend_x_size:
+  # Savitzky-Golay filter parameters.
+  # Active when calibration_surface_smoothing_method = 'savitzky_golay'.
+  savitzky_golay:
+    # Filter window length in pixels (must be odd, >= 3).
+    #   Type: integer.
+    window_length: 51
 
-  # Moving y-axis window buffer to extend kernel.
-  #   Type: integer | null.
-  #   Units: pixels.
-  window_extend_y_size:
+    # Polynomial order for fitting (must be < window_length).
+    #   Type: integer.
+    polyorder: 3
+
+    # Derivative order (0 = smoothing only).
+    #   Type: integer.
+    deriv: 0
+
+  # FFT filter parameters.
+  # Active when calibration_surface_smoothing_method is 'gaussian_fft' or
+  # 'hanning_fft'.
+  fft_filter:
+    # Gaussian filter standard deviation in wavelength units.
+    #   Type: float.
+    gaussian_sigma: 0.1
+
+    # Butterworth filter order.
+    #   Type: integer.
+    butterworth_order: 4
+
+    # Apply filter in spatial domain instead of frequency domain.
+    #   Type: boolean.
+    spatial_domain: false
+
+    # Taper image edges to reduce ringing artefacts.
+    #   Type: boolean.
+    taper_edges: true
+
+    # Taper width as a fraction of image dimensions [0, 0.5].
+    #   Type: float.
+    taper_width: 0.05

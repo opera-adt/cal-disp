@@ -15,9 +15,9 @@ cal_disp_workflow:
     # REQUIRED: Directory containing UNR .tenv8 timeseries files.
     #   Type: string.
     unr_timeseries_dir:
-    # REQUIRED: Version of UNR gridded data, e.g. [0.2].
+    # REQUIRED: Version of UNR gridded data, e.g. [0.3].
     #   Type: string.
-    unr_grid_version: '0.2'
+    unr_grid_version: '0.3'
     # REQUIRED: Type of UNR gridded data [constant|variable].
     #   Type: string.
     unr_grid_type: constant
@@ -90,7 +90,7 @@ cal_disp_workflow:
   primary_executable:
     # Product type of the PGE.
     #   Type: string.
-    product_type: CAL_DISP
+    product_type: DISP_CAL
   # Product path configuration.
   #   Type: Object.
   product_path_group:

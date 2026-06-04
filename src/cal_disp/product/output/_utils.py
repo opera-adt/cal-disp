@@ -17,7 +17,7 @@ def build_filename(
 ) -> str:
     """Build OPERA-compliant filename for calibration product."""
     return (
-        f"OPERA_L4_CAL-DISP-{sensor}_"
+        f"OPERA_L4_DISP-CAL-{sensor}_"
         f"{disp_product.mode}_"
         f"F{disp_product.frame_id:05d}_"
         f"{disp_product.polarization}_"

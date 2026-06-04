@@ -2,41 +2,24 @@ name: my-cal-disp
 channels:
   - conda-forge
 dependencies:
-  # Geospatial libraries
+  # C-extension packages best installed via conda
   - gdal
+  - libgdal-netcdf
   - geopandas
   - rasterio
   - rioxarray
   - shapely
+  - h5py
 
-  # Visualization
+  # Visualization (conda-forge has better platform support)
   - matplotlib-base
   - cmap
-
-  # Data science core
-  - numpy
-  - pandas
-  - scipy
-  - xarray
-
-  # Data validation
-  - pydantic
-
-  # File formats
-  - h5py
-  - h5netcdf
-
-  # Utilities
-  - requests
-  - tqdm
-  - ruamel.yaml
-  - click
 
   # Development tools
   - pytest
   - pre-commit
 
-  # PyPI packages
+  # Install the package and remaining Python deps via pip
   - pip
   - pip:
-    - opera-utils
+    - -e .

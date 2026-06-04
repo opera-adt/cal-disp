@@ -79,7 +79,7 @@ def build_main_dataset(
     # Add global attributes with type information
     base_attrs = {
         "Conventions": "CF-1.8",
-        "title": f"OPERA L4 CAL-DISP-{sensor} Calibration Product",
+        "title": f"OPERA L4 DISP-CAL-{sensor} Calibration Product",
         "institution": "NASA JPL",
         "contact": "operaops@jpl.nasa.gov",
         "source": "OPERA",
