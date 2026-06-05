@@ -46,4 +46,4 @@ repos:
     hooks:
       - id: black
         args: [--preview, --enable-unstable-feature, string_processing]
-        exclude: '\.ipynb$'
+        exclude: '(\.ipynb$|^src/cal_disp/_version\.py$)'
