@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cal-disp"
-description = "OPERA DISP calibration workflows"
+description = "OPERA DISP Calibration workflows"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
 classifiers = [
@@ -42,7 +42,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/opera-adt/cal-disp1"
+Homepage = "https://github.com/opera-adt/cal-disp"
 "Bug Tracker" = "https://github.com/opera-adt/cal-disp/issues"
 
 # Entry points for the command line interface

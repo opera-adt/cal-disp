@@ -20,8 +20,23 @@ install_packages() {
     shift
     local PACKAGES="$@"
 
+    # The lockfile captures only the conda layer. Strip any pip editable
+    # install of the local project (e.g. a `- pip:` block with `- -e .`)
+    # before locking: this runs in a container that has no project source
+    # mounted, so pip would fail with "does not appear to be a Python project".
+    # The cal-disp package itself is installed separately (see docker/Dockerfile),
+    # so environment.yml can keep `-e .` for local dev without breaking locking.
+    # Global (not local) so the EXIT trap can still see it after this function
+    # returns. A RETURN trap would re-fire on main's return where it is unset.
+    SANITIZED=$(mktemp --suffix=.yml)
+    trap 'rm -f "${SANITIZED:-}"' EXIT
+    grep -vE '^[[:space:]]*(- pip:[[:space:]]*|- -e[[:space:]].*)$' "$ENVFILE" > "$SANITIZED"
+    # mktemp creates mode 0600; the container user (mambauser) must be able to
+    # read the bind-mounted file, otherwise micromamba reports "bad file".
+    chmod 0644 "$SANITIZED"
+
     # Prepare arguments for the command
-    local FILE_ARG="--file /tmp/$(basename "$ENVFILE")"
+    local FILE_ARG="--file /tmp/environment.yml"
     if [[ -n "$PACKAGES" ]]; then
         PKGS_ARGS=(${PACKAGES[@]})
     else
@@ -31,7 +46,7 @@ install_packages() {
     # Get concretized package list.
     local PKGLIST
     PKGLIST=$(docker run --rm --network=host \
-        -v "$ENVFILE:/tmp/$(basename "$ENVFILE"):ro" \
+        -v "$SANITIZED:/tmp/environment.yml:ro" \
         mambaorg/micromamba:1.1.0 bash -c "\
             micromamba install -y -n base $FILE_ARG $PKGS_ARGS > /dev/null && \
             micromamba env export --explicit")

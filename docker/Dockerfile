@@ -4,7 +4,7 @@ FROM ${BASE}
 
 # Metadata
 LABEL org.opencontainers.image.title="cal-disp"
-LABEL org.opencontainers.image.description="OPERA DISP calibration"
+LABEL org.opencontainers.image.description="OPERA DISP Calibration"
 LABEL org.opencontainers.image.authors="OPERA ADT Team"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.url="https://github.com/opera-adt/cal-disp"
