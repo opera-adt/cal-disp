@@ -19,6 +19,7 @@ import numpy as np
 import rasterio
 import xarray as xr
 
+from cal_disp._version import __version__
 from cal_disp.config._algorithm import AlgorithmParameters
 from cal_disp.product import CalProduct, DispProduct
 
@@ -73,23 +74,51 @@ def _build_event_mask(
 
 def _read_wavelength_m(disp_file: Path) -> float:
     """Read the radar wavelength (m) from a DISP product."""
-    from netCDF4 import Dataset  # type: ignore[import-untyped]
+    from cal_disp.product._disp import read_disp_metadata
 
     try:
-        with Dataset(disp_file, "r") as nc:
-            ident_group = nc.groups["identification"]
-            wl_m = float(ident_group.variables["radar_wavelength"][:])
-            wl_units = getattr(ident_group.variables["radar_wavelength"], "units", "m")
-        logger.debug(
-            "Read radar_wavelength %.6f %s from %s", wl_m, wl_units, disp_file.name
-        )
-        return wl_m
-    except Exception as e:
+        wl_m = read_disp_metadata(
+            disp_file, {"radar_wavelength": "/identification/radar_wavelength"}
+        )["radar_wavelength"]
+    except OSError as e:
+        raise RuntimeError(f"Could not open {disp_file.name}") from e
+    if wl_m is None:
         msg = (
             f"Could not read /identification/radar_wavelength from {disp_file.name}. "
             "Ensure the file is a valid DISP product with an /identification group."
         )
-        raise RuntimeError(msg) from e
+        raise RuntimeError(msg)
+    logger.debug("Read radar_wavelength %.6f m from %s", wl_m, disp_file.name)
+    return float(wl_m)
+
+
+def _unwrap_cycle_length_m(wavelength_m: float) -> float:
+    """LOS displacement of one unwrapping cycle (2π of phase), in metres.
+
+    Repeat-pass InSAR measures the two-way path, so one phase cycle is
+    ``wavelength / 2`` of LOS displacement (27.7 mm for Sentinel-1 C-band,
+    not the 55.5 mm wavelength).  Venti's ``UnwrapCorrector`` rounds region
+    offsets to integer multiples of the value it is given as ``wavelength``,
+    so it must receive this cycle length, not the wavelength itself.
+    """
+    return wavelength_m / 2.0
+
+
+def _load_displacement(ds_disp: xr.Dataset, block_rows: int = 512) -> np.ndarray:
+    """Load the ``displacement`` layer once, as float32.
+
+    The layer is float64 on disk (585 MB for a DISP-S1 frame).  Reading it
+    with ``.values`` loads the whole float64 array and keeps it cached in the
+    dataset for the rest of the run, next to the float32 copy the fit uses.
+    Row blocks are read into a preallocated float32 array instead, so the
+    full float64 array is never held and nothing stays cached.  The values
+    equal ``displacement.values.astype(np.float32)`` exactly.
+    """
+    displacement = ds_disp["displacement"]
+    out = np.empty(displacement.shape, dtype=np.float32)
+    for row in range(0, displacement.shape[0], block_rows):
+        out[row : row + block_rows] = displacement[row : row + block_rows].values
+    return out
 
 
 def _date_to_decimal_year(dt: datetime) -> float:
@@ -105,7 +134,7 @@ def _date_to_decimal_year(dt: datetime) -> float:
 def _load_los_bands(
     los_file: Path,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Read the (east, north, up) bands of a LOS GeoTIFF."""
+    """Read the (east, north, up) bands of a LOS GeoTIFF; NaN where no data."""
     with rasterio.open(los_file) as src:
         if src.count < 3:
             raise ValueError(
@@ -115,7 +144,10 @@ def _load_los_bands(
         los_east = src.read(1).astype(np.float32)
         los_north = src.read(2).astype(np.float32)
         los_up = src.read(3).astype(np.float32)
-    return los_east, los_north, los_up
+        nodata = src.nodata
+    from cal_disp.prep.consistency import mask_los_nodata
+
+    return mask_los_nodata(los_east, los_north, los_up, nodata)
 
 
 def _staged_station_files(
@@ -339,20 +371,15 @@ def run_calibration(
     calibration_reference_version: str = "0.3",
     calibration_reference_type: str | None = None,
     calibration_reference_reference_frame: str = "IGS20",
-    # Product metadata
-    platform_id: str = "S1A",
-    absolute_orbit_number: int = 0,  # TODO: extract from DISP identification group
-    track_number: int = 0,  # TODO: extract from DISP identification group
-    instrument_name: str = "C-SAR",
-    look_direction: str = "right",
-    radar_band: str = "C",
-    orbit_pass_direction: str = "ascending",
-    processing_facility: str = "JPL",
-    source_data_access: str = "https://datapool.asf.alaska.edu/",
-    source_data_dem_name: str = "Copernicus DEM GLO-30",
-    source_data_imaging_geometry: str = "right_looking",
-    static_layers_data_access: str = "https://example.com/static_layers",
-    product_data_access: str = "https://example.com/products",
+    # Product metadata. Platform, orbit, track, look direction, instrument,
+    # band, DEM, imaging geometry, satellite names and CEOS fields are read
+    # from the DISP product's identification group.
+    product_version: str = "1.0",
+    compression: bool = True,
+    processing_facility: str = "NASA Jet Propulsion Laboratory on AWS",
+    product_data_access: str = "https://search.asf.alaska.edu/#/?dataset=OPERA-S1&productTypes=DISP-S1-CAL",
+    static_layers_data_access: str | None = None,
+    source_data_access: str | None = None,
 ) -> Path:
     """Run the single-file displacement calibration workflow.
 
@@ -398,32 +425,20 @@ def run_calibration(
         ``'constant'`` or ``'variable'``; must match ``grid_type`` (default).
     calibration_reference_reference_frame : str
         GNSS reference frame (e.g. ``'IGS20'``).
-    platform_id : str
-        Satellite platform identifier (e.g. ``'S1A'``).
-    absolute_orbit_number : int
-        Absolute orbit number.
-    track_number : int
-        Track number.
-    instrument_name : str
-        SAR instrument name.
-    look_direction : str
-        Radar look direction.
-    radar_band : str
-        Radar frequency band.
-    orbit_pass_direction : str
-        Orbit pass direction (``'ascending'`` or ``'descending'``).
+    product_version : str
+        Product version in ``<major>.<minor>`` format; written to the product
+        filename and identification metadata.
+    compression : bool
+        Write the product rasters gzip-compressed in (256, 256) chunks.
     processing_facility : str
         Processing facility name.
-    source_data_access : str
-        URL for source data access.
-    source_data_dem_name : str
-        Name of the DEM used.
-    source_data_imaging_geometry : str
-        Imaging geometry description.
-    static_layers_data_access : str
-        URL for static layer access.
     product_data_access : str
         URL for product data access.
+    static_layers_data_access : str, optional
+        URL of the frame's static layers; by default the DISP product's value.
+    source_data_access : str, optional
+        URL for source (DISP) data access; by default the DISP product's
+        ``product_data_access``.
 
     Returns
     -------
@@ -440,6 +455,7 @@ def run_calibration(
     if work_directory is None:
         work_directory = output_dir / "scratch"
     work_directory.mkdir(parents=True, exist_ok=True)
+    processing_start = datetime.now(tz=timezone.utc)
 
     cal = algorithm_parameters.calibration_options
     if calibration_reference_type is None:
@@ -454,6 +470,10 @@ def run_calibration(
     # Load DISP product
     logger.info("Loading DISP product: %s", disp_file.name)
     disp_product = DispProduct.from_path(disp_file)
+    # The static layers are used by array index: same grid and frame required
+    from cal_disp.prep.consistency import check_input_geometry
+
+    check_input_geometry(disp_product, los_file, dem_file)
     ds_disp = disp_product.open_dataset()
 
     time = ds_disp.time.values
@@ -462,27 +482,44 @@ def run_calibration(
 
     spatial_ref = ds_disp.get("spatial_ref")
 
-    x_min, x_max = float(x.min()), float(x.max())
-    y_min, y_max = float(y.min()), float(y.max())
     x_spacing = float(np.abs(x[1] - x[0]))
     y_spacing = float(np.abs(y[1] - y[0]))
+    product_sample_spacing = f"{x_spacing:g}m"
 
-    product_bounding_box = f"({x_min}, {y_min}, {x_max}, {y_max})"
-    bounding_polygon = (
-        f"POLYGON(({x_min} {y_min}, {x_max} {y_min}, "
-        f"{x_max} {y_max}, {x_min} {y_max}, {x_min} {y_min}))"
-    )
-    product_sample_spacing = f"{x_spacing}m"
-    nodata_pixel_count = int(np.isnan(ds_disp.displacement.values).sum())
+    # Grid extent: outer pixel edges in UTM, and the same in lon/lat (as DISP)
+    from cal_disp.product.output._utils import bounding_polygon_wkt, grid_bounds
+
+    west, south, east, north = grid_bounds(x, y)
+    product_bounding_box = f"({west}, {south}, {east}, {north})"
+    crs_wkt = spatial_ref.attrs.get("crs_wkt") if spatial_ref is not None else None
+    if crs_wkt:
+        bounding_polygon = bounding_polygon_wkt(x, y, crs_wkt)
+    else:
+        logger.warning("%s has no CRS; bounding_polygon left empty", disp_file.name)
+        bounding_polygon = ""
 
     source_data_file_list = [disp_file.name]
     source_calibration_file_list = [unr_grid_latlon_file.name]
     tenv8_files = _staged_station_files(
         unr_timeseries_dir, cal.reference_frame, cal.grid_type
     )
-    source_calibration_file_list.extend(f.name for f in tenv8_files[:10])
+    source_calibration_file_list.extend(f.name for f in tenv8_files)
 
-    source_data_satellite_names = [f"Sentinel-{platform_id[-2:]}"]
+    # Platform/orbit/geometry metadata from the DISP product (WARNING + marked
+    # fallback for anything the input lacks)
+    disp_meta = disp_product.read_metadata()
+
+    def _meta(name: str, fallback: str | int) -> str | int:
+        value = disp_meta.get(name)
+        return fallback if value is None else value
+
+    platform_id = str(_meta("platform_id", "unknown"))
+    satellite_names = str(_meta("source_data_satellite_names", platform_id))
+    source_data_satellite_names = [s.strip() for s in satellite_names.split(",")]
+    if static_layers_data_access is None:
+        static_layers_data_access = str(_meta("static_layers_data_access", "unknown"))
+    if source_data_access is None:
+        source_data_access = str(_meta("product_data_access", "unknown"))
 
     # GNSS reference setup
     logger.info("Setting up GNSS reference...")
@@ -517,7 +554,9 @@ def run_calibration(
         _date_to_decimal_year(disp_product.secondary_date),
     )
 
-    disp_2d = ds_disp.displacement.values.astype(np.float32)
+    # Displacement (m): float64 on disk, read in row blocks straight into
+    # float32 so the float64 array is never held or cached in `ds_disp`
+    disp_2d = _load_displacement(ds_disp)
 
     # Valid pixels (both masks: 1 = valid)
     mask = ~np.isnan(disp_2d)
@@ -595,11 +634,16 @@ def run_calibration(
         weights = ds_disp.temporal_coherence.values.astype(np.float32)
 
     ref_point = _find_reference_point(ds_disp, mask, work_directory)
+    # Cycle length of an unwrapping error: λ/2 (two-way path), derived from
+    # the product's radar wavelength so other sensors (e.g. NISAR) are
+    # handled too.  Venti calls this argument `wavelength_m` but uses it as
+    # the value region offsets are rounded to.
     wavelength_m = (
         _read_wavelength_m(disp_file)
         if cal.unwrap_error_correction
         else SENTINEL1_WAVELENGTH_M
     )
+    unwrap_cycle_m = _unwrap_cycle_length_m(wavelength_m)
 
     logger.info(
         "Fitting calibration surface (window=%d px, downsample=%d, corrections:"
@@ -620,7 +664,7 @@ def run_calibration(
             gnss_los_std=gnss_los_std if cal.weight_fit_by_gnss_uncertainty else None,
             event_mask=event_mask,
             options=cal.to_venti(),
-            wavelength_m=wavelength_m,
+            wavelength_m=unwrap_cycle_m,
             downsample_factor=cal.downsample_factor,
             downsample_method=cal.downsample_method,
             downsample_weights=weights,
@@ -630,6 +674,7 @@ def run_calibration(
         exc.add_note(f"While calibrating {disp_file.name}")
         raise
     cal_surface_m = result.surface.astype(np.float32)
+    nodata_pixel_count = int(np.isnan(cal_surface_m).sum())
 
     coords = {"time": time, "y": y, "x": x}
     calibration = xr.DataArray(
@@ -697,7 +742,9 @@ def run_calibration(
         except importlib.metadata.PackageNotFoundError:
             return "unknown"
 
-    cal_disp_version = _pkg_version("cal-disp")
+    # The package's own version, not the installed distribution's: for an
+    # editable install the dist-info is only refreshed on reinstall.
+    cal_disp_version = __version__
     venti_version = _pkg_version("venti")
 
     _buf = StringIO()
@@ -718,7 +765,8 @@ def run_calibration(
             "auxiliary_model_3d_resolution": "5km",
             "calibration_resolution": f"{int(x_spacing)}m",
         },
-        version="0.1",
+        version=product_version,
+        compression=compression,
     )
 
     cal_product.add_identification(
@@ -729,18 +777,20 @@ def run_calibration(
         source_data_file_list=source_data_file_list,
         source_calibration_file_list=source_calibration_file_list,
         source_data_access=source_data_access,
-        source_data_dem_name=source_data_dem_name,
+        source_data_dem_name=str(_meta("source_data_dem_name", "unknown")),
         source_data_satellite_names=source_data_satellite_names,
-        source_data_imaging_geometry=source_data_imaging_geometry,
+        source_data_imaging_geometry=str(
+            _meta("source_data_imaging_geometry", "unknown")
+        ),
         source_data_x_spacing=x_spacing,
         source_data_y_spacing=y_spacing,
         static_layers_data_access=static_layers_data_access,
-        absolute_orbit_number=absolute_orbit_number,
-        track_number=track_number,
-        instrument_name=instrument_name,
-        look_direction=look_direction,
-        radar_band=radar_band,
-        orbit_pass_direction=orbit_pass_direction,
+        absolute_orbit_number=int(_meta("absolute_orbit_number", -1)),
+        track_number=int(_meta("track_number", -1)),
+        instrument_name=str(_meta("instrument_name", "unknown")),
+        look_direction=str(_meta("look_direction", "unknown")).lower(),
+        radar_band=str(_meta("radar_band", "unknown")),
+        orbit_pass_direction=str(_meta("orbit_pass_direction", "unknown")).lower(),
         bounding_polygon=bounding_polygon,
         product_bounding_box=product_bounding_box,
         product_sample_spacing=product_sample_spacing,
@@ -748,7 +798,13 @@ def run_calibration(
         processing_facility=processing_facility,
         nodata_pixel_count=nodata_pixel_count,
         ceos_number_of_input_granules=len(source_data_file_list),
-        processing_start_datetime=datetime.now(tz=timezone.utc),
+        processing_start_datetime=processing_start,
+        ceos_analysis_ready_data_document_identifier=disp_meta.get(
+            "ceos_analysis_ready_data_document_identifier"
+        ),
+        ceos_analysis_ready_data_product_type=disp_meta.get(
+            "ceos_analysis_ready_data_product_type"
+        ),
     )
 
     cal_product.add_metadata(

@@ -303,6 +303,31 @@ class TestTropoDownload:
                 call_kwargs = mock_download.call_args.kwargs
                 assert call_kwargs["num_workers"] == 8
 
+    def test_no_scenes_found_fails(
+        self,
+        cli_runner: CliRunner,
+        tmp_path: Path,
+        sample_disp_product: Path,
+    ):
+        """An empty scene search must fail, not print 'Download complete'."""
+        from cal_disp.download._errors import DownloadError
+
+        with patch("cal_disp.download.download_tropo") as mock_download:
+            mock_download.side_effect = DownloadError("No TROPO scenes found")
+            with patch(
+                "cal_disp.download.utils.extract_sensing_times_from_file"
+            ) as mock_extract:
+                mock_extract.return_value = [datetime(2022, 1, 11)]
+
+                result = cli_runner.invoke(
+                    tropo,
+                    ["--input-file", str(sample_disp_product), "-o", str(tmp_path)],
+                )
+
+        assert result.exit_code != 0
+        assert "No TROPO scenes found" in result.output
+        assert "Download complete" not in result.output
+
 
 class TestBurstBoundsDownload:
     """Tests for burst-bounds download command."""
@@ -312,6 +337,30 @@ class TestBurstBoundsDownload:
         result = cli_runner.invoke(burst_bounds, [])
 
         assert result.exit_code != 0
+
+    @pytest.mark.parametrize(
+        ("name", "message"),
+        [
+            # Sensor is checked before the frame ID is parsed
+            ("OPERA_L3_DISP-NI_IW.nc", "Only DISP-S1 products supported, got: NI"),
+            ("OPERA_L3_DISP-S1_IW.nc", "Cannot read the frame ID"),
+            ("product.nc", "Not an OPERA DISP product name"),
+        ],
+    )
+    def test_malformed_names_reported(
+        self, cli_runner: CliRunner, tmp_path: Path, name: str, message: str
+    ):
+        """Unsupported or malformed names give a clear error, not a traceback."""
+        bad_file = tmp_path / name
+        bad_file.touch()
+
+        result = cli_runner.invoke(
+            burst_bounds, ["--input-file", str(bad_file), "-o", str(tmp_path)]
+        )
+
+        assert result.exit_code != 0
+        assert result.exception is None or isinstance(result.exception, SystemExit)
+        assert message in result.output
 
     def test_requires_output_dir(
         self, cli_runner: CliRunner, sample_disp_product: Path

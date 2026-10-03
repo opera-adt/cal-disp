@@ -2,7 +2,8 @@ name: my-cal-disp
 channels:
   - conda-forge
 dependencies:
-  - python>=3.11
+  # <3.14: the conda-forge netcdf4 build for 3.14 is abi3 and warns about the numpy ABI
+  - python>=3.11,<3.14
   # C-extension packages best installed via conda
   - gdal
   - libgdal-netcdf

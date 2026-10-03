@@ -68,6 +68,50 @@ class CalibrationWorkflow(YamlModel):
         ),
     )
 
+    product_version: str = Field(
+        default="1.0",
+        description=(
+            "Version of the output product, in <major>.<minor> format. Used in the"
+            " product filename and identification metadata."
+        ),
+    )
+
+    compression: bool = Field(
+        default=True,
+        description=(
+            "Write the product's raster layers gzip-compressed (level 4, shuffle"
+            " filter) in (256, 256) chunks, as the DISP-S1 input."
+        ),
+    )
+
+    processing_facility: str = Field(
+        default="NASA Jet Propulsion Laboratory on AWS",
+        description="Product processing facility written to /identification.",
+    )
+
+    product_data_access: str = Field(
+        default=(
+            "https://search.asf.alaska.edu/#/?dataset=OPERA-S1&productTypes=DISP-S1-CAL"
+        ),
+        description="URL (or DOI) where this product can be retrieved.",
+    )
+
+    static_layers_data_access: Optional[str] = Field(
+        default=None,
+        description=(
+            "URL of the DISP static layers product of the frame. If None, taken"
+            " from the input DISP product's identification group."
+        ),
+    )
+
+    source_data_access: Optional[str] = Field(
+        default=None,
+        description=(
+            "URL (or DOI) where the input DISP products can be retrieved. If None,"
+            " taken from the input DISP product's identification group."
+        ),
+    )
+
     # Optional ancillary file groups
     dynamic_ancillary_options: Optional[DynamicAncillaryFileGroup] = Field(
         default=None,
@@ -212,7 +256,10 @@ class CalibrationWorkflow(YamlModel):
 
         logger = logging.getLogger("cal_disp")
         logger.setLevel(level)
-        logger.handlers.clear()
+        # Close existing handlers so repeated setup does not leak file handles
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+            handler.close()
 
         # Console handler
         console_handler = logging.StreamHandler()
@@ -253,6 +300,8 @@ class CalibrationWorkflow(YamlModel):
             f"  Output directory: {self.output_directory}",
             f"  Log file:         {self.log_file}",
             f"  Keep relative:    {self.keep_paths_relative}",
+            f"  Product version:  {self.product_version}",
+            f"  Compression:      {self.compression}",
             "",
         ]
 
@@ -265,8 +314,7 @@ class CalibrationWorkflow(YamlModel):
                     f"  Frame ID:         {self.input_options.frame_id}",
                     f"  UNR lookup:       {self.input_options.unr_grid_latlon_file}",
                     f"  UNR grid dir:     {self.input_options.unr_timeseries_dir}",
-                    "",
-                    f"  UNR version:         {self.input_options.unr_grid_version}",
+                    f"  UNR version:      {self.input_options.unr_grid_version}",
                     f"  UNR type:         {self.input_options.unr_grid_type}",
                 ]
             )

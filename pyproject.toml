@@ -42,7 +42,9 @@ dependencies = [
   "cmap",  # browse image colormaps
   # the `disp` extra brings what opera_utils.disp imports (reference pixel)
   "opera-utils[disp]",
-  "venti @ git+https://github.com/opera-adt/Venti",
+  # Pinned to the commit the golden dataset and the regression tests were
+  # produced with (pip reports it as 0.0.post1.dev80+g2a7e61f0c)
+  "venti @ git+https://github.com/opera-adt/Venti@2a7e61f0ce3c51658afd4bbd9bf8570c72f4ac4e",
 ]
 
 [project.urls]
@@ -129,13 +131,106 @@ python_version = "3.11"
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
 
+# The only pytest configuration: `pytest` and `pytest tests` (CI) read this
+# section from the repository root. Do not add a tests/pytest.ini: it would
+# take precedence and silently drop the seed, the ignores and filterwarnings.
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 doctest_optionflags = "NORMALIZE_WHITESPACE NUMBER"
-addopts = " --randomly-seed=1234 --ignore=scripts --ignore=docs --ignore=data"
+addopts = "-ra --strict-markers --strict-config --randomly-seed=1234 --ignore=scripts --ignore=docs --ignore=data"
+markers = [
+  "slow: full-workflow subprocess tests (deselect with -m 'not slow')",
+  "integration: integration tests requiring external data or services",
+  "requires_earthdata: tests requiring Earthdata credentials",
+  "requires_network: tests requiring network access",
+]
 filterwarnings = [
   "error",
+  "ignore:The 'shapely.geos' module is deprecated:DeprecationWarning",
   # DeprecationWarning thrown in pkg_resources for older numba verions and llvmlite
   "ignore:.*pkg_resources.*",
   "ignore:h5py is running against HDF5.*:UserWarning",
+  # Benign Cython ABI notice from conda-forge's abi3 netCDF4 build
+  "ignore:numpy.ndarray size changed, may indicate binary incompatibility:RuntimeWarning",
+  # rasterio.transform uses the deprecated Affine `*` operator (affine >= 3)
+  "ignore:Use `@` matmul instead of `\\*` mul operator:PendingDeprecationWarning",
   "ignore:Exception ignored in.* <_io.FileIO.*:pytest.PytestUnraisableExceptionWarning"
 ]
+
+# ---------------------------------------------------------------------------
+# pixi (https://pixi.sh): reproducible conda + PyPI environments and tasks.
+#   pixi install            # default env: runtime + download extra
+#   pixi run test           # dev env: pytest
+#   pixi run lint           # dev env: pre-commit on all files
+#   pixi shell -e dev       # activate the dev env
+# The conda layer mirrors environment.yml; cal-disp itself (and its PyPI-only
+# dependencies such as venti and opera-utils) is installed editable via pip.
+# ---------------------------------------------------------------------------
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "osx-64"]
+
+[tool.pixi.dependencies]
+# <3.14: the conda-forge netcdf4 build for 3.14 is abi3 and warns about the numpy ABI
+python = ">=3.11,<3.14"
+# C-extension packages best installed via conda (share one GDAL/HDF5 stack)
+gdal = "*"
+libgdal-netcdf = "*"
+geopandas = "*"
+rasterio = ">=1.5"
+rioxarray = "*"
+shapely = "*"
+h5py = "*"
+h5netcdf = "*"
+netcdf4 = "*"
+numpy = "*"
+scipy = "*"
+xarray = "*"
+pandas = "*"
+pydantic = ">=2.0"
+pyproj = ">=3.3"
+requests = "*"
+urllib3 = "*"
+tqdm = "*"
+"ruamel.yaml" = "*"
+click = "*"
+matplotlib-base = "*"
+cmap = "*"
+pip = "*"
+
+[tool.pixi.pypi-dependencies]
+cal-disp = { path = ".", editable = true, extras = ["download"] }
+
+[tool.pixi.feature.test.dependencies]
+pytest = "*"
+pytest-randomly = "*"
+pyyaml = "*"
+
+[tool.pixi.feature.dev.dependencies]
+pre-commit = "*"
+ruff = "*"
+black = "*"
+mypy = "*"
+# Executing the fix-inspection notebooks in docs/notebooks/
+ipykernel = "*"
+nbconvert = "*"
+nbformat = "*"
+
+[tool.pixi.feature.docs.dependencies]
+mkdocs = ">=1.6"
+mkdocs-material = ">=9.5"
+mkdocstrings-python = ">=1.10"
+mkdocs-jupyter = ">=0.25"
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+dev = { features = ["test", "dev"], solve-group = "default" }
+# Own solve-group: the docs toolchain must not constrain the runtime stack
+docs = { features = ["docs"], solve-group = "docs" }
+
+[tool.pixi.tasks]
+test = { cmd = "pytest", description = "Run the test suite" }
+lint = { cmd = "pre-commit run --all-files", description = "Run ruff/black/mypy via pre-commit" }
+docs = { cmd = "mkdocs serve", description = "Serve the documentation locally" }
+build-golden = { cmd = "bash scripts/build_golden_output.sh", description = "Build the golden dataset (needs ~/.netrc Earthdata login)" }
+validate = { cmd = "bash scripts/run_validation.sh", description = "Validate this install against a golden dataset: pixi run validate --golden-dir DIR" }

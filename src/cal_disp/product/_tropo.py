@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
+import rioxarray  # noqa: F401  (registers the .rio accessor)
 import xarray as xr
 from rasterio.crs import CRS
 from rasterio.enums import Resampling
@@ -383,6 +384,7 @@ def interpolate_to_dem_surface(
     method: str = "linear",
     output_path: Path | str | None = None,
     output_format: str = "netcdf",
+    block_rows: int = 512,
 ) -> xr.DataArray:
     """Interpolate 3D tropospheric delay to DEM surface heights.
 
@@ -399,6 +401,9 @@ def interpolate_to_dem_surface(
         If provided, save result. Default is None.
     output_format : str, optional
         Output format ("netcdf" or "geotiff"). Default is "netcdf".
+    block_rows : int, optional
+        Number of DEM rows interpolated per call, which bounds the memory
+        used by the interpolator. Does not change the result. Default is 512.
 
     Returns
     -------
@@ -452,16 +457,24 @@ def interpolate_to_dem_surface(
         fill_value=np.nan,
     )
 
-    # Create coordinate meshgrid
-    yy, xx = np.meshgrid(dem.y.values, dem.x.values, indexing="ij")
-    pts = np.column_stack([dem.values.ravel(), yy.ravel(), xx.ravel()])
+    # New float32 array on the DEM grid (coordinates and CRS kept).  Never
+    # write into the DEM's own buffer: the DISP-S1-STATIC DEM is float16 on
+    # disk, and a delay of ~2.4 m stored in float16 is quantised to ~2 mm.
+    out = dem.astype(np.float32, copy=True)
 
-    # Interpolate
-    vals = rgi(pts)
-
-    # Create output DataArray
-    out = dem.copy()
-    out.values[:] = vals.reshape(dem.shape).astype(np.float32)
+    # Interpolate in row blocks: on a full frame (~73 M pixels) a single call
+    # needs ~12 GB of float64/int64 temporaries inside the interpolator.  Each
+    # point is interpolated independently, so the result does not depend on
+    # the block size.
+    y = dem.y.values
+    x = dem.x.values
+    dem_values = dem.values
+    out_values = out.values
+    for start in range(0, dem.shape[0], block_rows):
+        stop = min(start + block_rows, dem.shape[0])
+        yy, xx = np.meshgrid(y[start:stop], x, indexing="ij")
+        pts = np.column_stack([dem_values[start:stop].ravel(), yy.ravel(), xx.ravel()])
+        out_values[start:stop] = rgi(pts).reshape(stop - start, -1).astype(np.float32)
     out.name = da_tropo_cube.name or "tropospheric_delay"
 
     # Update attributes

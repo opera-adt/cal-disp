@@ -21,6 +21,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # Full history and tags: the image version comes from `git describe`
+          fetch-depth: 0
+
+      - name: Package version (PEP 440, from git describe)
+        id: version
+        run: |
+          version=$(docker/pep440-version.sh)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -57,3 +66,4 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             BASE=ubuntu:22.04
+            CAL_DISP_VERSION=${{ steps.version.outputs.version }}

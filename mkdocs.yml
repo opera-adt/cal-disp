@@ -1,5 +1,6 @@
 site_name: Documentation for CAL-DISP
-site_url: https://<your-username>.github.io/cal-disp/
+site_url: https://opera-adt.github.io/cal-disp/
+repo_url: https://github.com/opera-adt/cal-disp
 
 # Theme
 theme:
@@ -24,10 +25,26 @@ theme:
 nav:
   - Home: index.md
   - Quickstart: quickstart.md
+  - Workflow walkthrough: notebooks/00_calibration_walkthrough.ipynb
   - Tutorials:
       - Download: tutorials/download.ipynb
       - Configuration: tutorials/config.ipynb
       - Product: tutorials/product.ipynb
+  - Fix inspection notebooks:
+      - Unwrap cycle length: notebooks/01_unwrap_cycle_length.ipynb
+      - Float32 tropospheric delay: notebooks/02_float32_tropo_delay.ipynb
+      - Displacement load memory: notebooks/03_memory_displacement_load.ipynb
+      - Product encoding: notebooks/04_product_encoding.ipynb
+      - Identification metadata: notebooks/05_identification_metadata.ipynb
+      - spatial_ref and GeoTIFF export: notebooks/06_spatial_ref_geotiff.ipynb
+      - CF attributes and browse image: notebooks/07_cf_attrs_and_browse.ipynb
+      - Validation depth: notebooks/08_validation_depth.ipynb
+      - pytest configuration: notebooks/09_pytest_config.ipynb
+      - Runconfig fields: notebooks/10_runconfig_fields.ipynb
+      - Input consistency: notebooks/11_input_consistency.ipynb
+      - Environment provenance: notebooks/12_environment_provenance.ipynb
+      - Download robustness: notebooks/13_download_robustness.ipynb
+  - Development: development.md
   - API Reference: api.md
 
 # Plugins
@@ -44,12 +61,15 @@ plugins:
             separate_signature: true
   - mkdocs-jupyter:
       include_source: true
+      execute: false
 
 # Markdown extensions
 markdown_extensions:
   - admonition
   - pymdownx.highlight
   - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.details
   - pymdownx.snippets
   - toc:

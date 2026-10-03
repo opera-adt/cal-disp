@@ -58,7 +58,9 @@ def setup_logging(
     """
     logger = logging.getLogger(logger_name)
     logger.setLevel(getattr(logging, level.upper()))
-    logger.handlers.clear()
+    for handler in list(logger.handlers):
+        logger.removeHandler(handler)
+        handler.close()
 
     # Console handler
     console = logging.StreamHandler()

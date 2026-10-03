@@ -95,7 +95,7 @@ for f in "${DISP_FILE}" "${LOS_FILE}" "${DEM_FILE}" "${LOOKUP_FILE}" "${ALGO_FIL
 done
 
 # Parse UNR version from lookup filename (e.g. grid_latlon_lookup_v0.3.txt → "0.3")
-UNR_VERSION=$(basename "${LOOKUP_FILE}" | grep -oP 'v\K[\d.]+')
+UNR_VERSION=$(basename "${LOOKUP_FILE}" | grep -oP 'v\K\d+(\.\d+)*')
 if [[ -z "${UNR_VERSION}" ]]; then
     echo "ERROR: Cannot determine UNR version from lookup filename: $(basename "${LOOKUP_FILE}")" >&2
     exit 1

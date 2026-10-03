@@ -7,6 +7,9 @@ services:
         BASE: ubuntu:22.04
         MAMBA_USER_ID: ${UID:-1000}
         MAMBA_USER_GID: ${GID:-1000}
+        # export CAL_DISP_VERSION=$(docker/pep440-version.sh) before
+        # `docker compose build`, or the image reports the placeholder
+        CAL_DISP_VERSION: ${CAL_DISP_VERSION:-0.0.0.dev0+unknown}
     image: opera-adt/cal-disp:latest
     volumes:
       - ./data:/home/work/data
@@ -14,11 +17,7 @@ services:
     user: "${UID:-1000}:${GID:-1000}"
     command: cal-disp --help
 
-  # Development service with source mounted
+  # Interactive shell with data/results mounted
   cal-disp-dev:
     extends: cal-disp
-    volumes:
-      - ./data:/home/work/data
-      - ./results:/home/work/results
-      - ./src:/tmp/cal-disp/src
     command: bash

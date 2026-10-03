@@ -1,5 +1,16 @@
 # API Reference
 
+## Workflow
+
+::: cal_disp.workflow
+    options:
+      members:
+        - run_calibration
+
+## Validation
+
+::: cal_disp.validate
+
 ## CLI
 
 ::: cal_disp.cli

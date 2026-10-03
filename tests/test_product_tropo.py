@@ -108,6 +108,67 @@ class TestTropoProductMatching:
         assert not product.matches_date(target, hours=6.0)
 
 
+def test_interpolate_to_dem_surface_is_float32_for_float16_dem():
+    """A float16 DEM must not quantise the interpolated delay to ~2 mm steps."""
+    import numpy as np
+    import rioxarray  # noqa: F401 — registers the .rio accessor
+    import xarray as xr
+
+    from cal_disp.product import interpolate_to_dem_surface
+
+    ny, nx = 40, 50
+    lat = np.linspace(35.0, 34.0, ny)
+    lon = np.linspace(-118.0, -117.0, nx)
+    height = np.linspace(0.0, 4000.0, 9)
+    # Zenith delay: ~2.4 m at sea level, decreasing with height, plus a
+    # gentle horizontal gradient of 0.02 mm per column
+    delay = (
+        2.4
+        - 2.5e-4 * height[:, None, None]
+        + 2e-5 * np.arange(nx)[None, None, :]
+        + np.zeros((1, ny, 1))
+    )
+    cube = xr.DataArray(
+        delay,
+        dims=["height", "latitude", "longitude"],
+        coords={"height": height, "latitude": lat, "longitude": lon},
+        name="zenith_total_delay",
+    ).rio.write_crs("EPSG:4326")
+
+    rng = np.random.default_rng(0)
+    dem16 = xr.DataArray(
+        rng.uniform(0, 3000, (ny, nx)).astype(np.float16),
+        dims=["y", "x"],
+        coords={"y": lat, "x": lon},
+        name="dem",
+        attrs={"units": "m"},
+    ).rio.write_crs("EPSG:4326")
+    dem16_before = dem16.values.copy()
+
+    out = interpolate_to_dem_surface(cube, dem16)
+
+    assert out.dtype == np.float32
+    assert out.rio.crs == dem16.rio.crs
+    assert out.shape == dem16.shape
+    # The DEM itself is untouched (no write into its float16 buffer)
+    np.testing.assert_array_equal(dem16.values, dem16_before)
+    # Exact value expected from the (linear) delay model
+    expected = 2.4 - 2.5e-4 * dem16.values.astype(np.float64) + 2e-5 * np.arange(nx)
+    np.testing.assert_allclose(out.values, expected, atol=2e-6)
+    # Not quantised: had the delay been cast into the DEM's float16 buffer
+    # (the old behaviour), values near 2 m would sit on ~1-2 mm steps
+    quantised = out.values.astype(np.float16).astype(np.float32)
+    assert np.abs(quantised - out.values).max() > 4e-4  # >= 0.4 mm error
+    assert len(np.unique(out.values)) > 0.9 * out.size
+    assert len(np.unique(quantised)) < 0.5 * len(np.unique(out.values))
+
+    # Row-block interpolation (memory bound) gives bit-identical output,
+    # including a block size that does not divide the number of rows
+    for block_rows in (1, 7, ny + 5):
+        blocked = interpolate_to_dem_surface(cube, dem16, block_rows=block_rows)
+        np.testing.assert_array_equal(blocked.values, out.values)
+
+
 def test_repr():
     """Should have readable repr."""
     product = TropoProduct(

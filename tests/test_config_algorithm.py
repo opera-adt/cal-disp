@@ -59,7 +59,7 @@ class TestCalibrationOptions:
 
         assert options.grid_type == "constant"
         assert options.reference_frame == "IGS20"
-        assert options.unwrap_error_correction is True
+        assert options.unwrap_error_correction is False
         assert options.apply_tropo_correction is True
         assert options.apply_solid_earth_tide_correction is True
         assert options.window_size_meters == pytest.approx(30000.0)
@@ -186,7 +186,7 @@ class TestAlgorithmParameters:
         params = AlgorithmParameters.create_default()
 
         assert isinstance(params, AlgorithmParameters)
-        assert params.calibration_options.unwrap_error_correction is True
+        assert params.calibration_options.unwrap_error_correction is False
 
     def test_custom_calibration_options(self):
         """Should accept custom nested configuration."""

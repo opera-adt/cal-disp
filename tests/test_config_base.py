@@ -356,20 +356,19 @@ class TestDynamicAncillaryFileGroup:
         sample_static_layers: tuple[Path, Path],
         tmp_path: Path,
     ):
-        """Should accept optional ionospheric correction files."""
+        """Ionospheric files are rejected: the correction is not implemented."""
         los_file, dem_file = sample_static_layers
 
         iono_file = tmp_path / "iono.h5"
         iono_file.touch()
 
-        config = DynamicAncillaryFileGroup(
-            algorithm_parameters_file=sample_algorithm_params,
-            static_los_file=los_file,
-            static_dem_file=dem_file,
-            iono_files=[iono_file],
-        )
-
-        assert config.iono_files == [iono_file]
+        with pytest.raises(ValueError, match="iono_files is not supported"):
+            DynamicAncillaryFileGroup(
+                algorithm_parameters_file=sample_algorithm_params,
+                static_los_file=los_file,
+                static_dem_file=dem_file,
+                iono_files=[iono_file],
+            )
 
     def test_optional_tiles_files(
         self,
@@ -377,20 +376,19 @@ class TestDynamicAncillaryFileGroup:
         sample_static_layers: tuple[Path, Path],
         tmp_path: Path,
     ):
-        """Should accept optional tile boundary files."""
+        """Tile files are rejected: per-tile calibration is not implemented."""
         los_file, dem_file = sample_static_layers
 
         tile_file = tmp_path / "burst_bounds.geojson"
         tile_file.touch()
 
-        config = DynamicAncillaryFileGroup(
-            algorithm_parameters_file=sample_algorithm_params,
-            static_los_file=los_file,
-            static_dem_file=dem_file,
-            tiles_files=[tile_file],
-        )
-
-        assert config.tiles_files == [tile_file]
+        with pytest.raises(ValueError, match="tiles_files is not supported"):
+            DynamicAncillaryFileGroup(
+                algorithm_parameters_file=sample_algorithm_params,
+                static_los_file=los_file,
+                static_dem_file=dem_file,
+                tiles_files=[tile_file],
+            )
 
     def test_get_all_files(
         self,

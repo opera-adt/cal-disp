@@ -1,4 +1,5 @@
 pytest
+pytest-randomly
 pyyaml
 opera-utils
 asf_search

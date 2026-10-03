@@ -122,7 +122,7 @@ cat > "${D}/configs/algorithm_parameters.yaml" <<'EOF'
 calibration_options:
   grid_type: constant
   reference_frame: IGS20
-  unwrap_error_correction: true
+  unwrap_error_correction: false
   apply_tropo_correction: true
   apply_solid_earth_tide_correction: true
   window_size_meters: 600000.0
@@ -158,8 +158,7 @@ cal-disp config \
     -o  "${D}/output" \
     --work-dir "${D}/output/_work" \
     --keep-relative \
-    -c  runconfig.yaml > /dev/null
-mv "${D}/output/_work/runconfig.yaml" "${D}/configs/runconfig.yaml"
+    -c  "${D}/configs/runconfig.yaml" > /dev/null
 rm -rf "${D}/output/_work"
 
 # 3. Golden run

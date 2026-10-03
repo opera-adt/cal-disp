@@ -1,6 +1,11 @@
 """Build auxiliary group for calibration products."""
 
+from __future__ import annotations
+
 import xarray as xr
+
+from ._main import set_coord_attrs
+from ._utils import make_spatial_ref
 
 
 def build_auxiliary_dataset(
@@ -18,7 +23,8 @@ def build_auxiliary_dataset(
     model_3d_std : dict[str, xr.DataArray] or None
         3D displacement uncertainties (coarse resolution).
     spatial_ref : xr.DataArray or None
-        Spatial reference data variable.
+        Spatial reference data variable (CRS attributes are kept; the
+        ``GeoTransform`` is set for the coarse grid).
 
     Returns
     -------
@@ -26,8 +32,6 @@ def build_auxiliary_dataset(
         Auxiliary dataset with 3D displacement model.
 
     """
-    import rioxarray  # noqa: F401
-
     data_vars: dict[str, xr.DataArray] = {}
 
     # Component descriptions
@@ -54,8 +58,6 @@ def build_auxiliary_dataset(
                         "long_name": comp.replace("_", " ").title(),
                         "units": "meters",
                         "grid_mapping": "spatial_ref",
-                        "dtype": "float32",
-                        "coordinates": "y x",
                     }
                 )
                 data_vars[comp] = da
@@ -71,23 +73,18 @@ def build_auxiliary_dataset(
                         "long_name": comp.replace("_", " ").title(),
                         "units": "meters",
                         "grid_mapping": "spatial_ref",
-                        "dtype": "float32",
-                        "coordinates": "y x",
                     }
                 )
                 data_vars[comp] = da
 
-    # Add spatial_ref to auxiliary group
-    if spatial_ref is not None:
-        data_vars["spatial_ref"] = spatial_ref
+    # Spatial reference for the coarse grid
+    if spatial_ref is not None and data_vars:
+        first = next(iter(data_vars.values()))
+        data_vars["spatial_ref"] = make_spatial_ref(
+            spatial_ref, first.x.values, first.y.values
+        )
 
-    ds = xr.Dataset(data_vars)
-
-    # Write CRS if available
-    if spatial_ref is not None:
-        crs_wkt = spatial_ref.attrs.get("crs_wkt")
-        if crs_wkt:
-            ds = ds.rio.write_crs(crs_wkt)
+    ds = set_coord_attrs(xr.Dataset(data_vars))
 
     # Add group-specific attributes
     ds.attrs.update(

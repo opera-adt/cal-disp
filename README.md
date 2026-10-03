@@ -11,14 +11,14 @@ Creates the science application software (SAS) using the [Venti](https://github.
 
 ### Prerequisites
 
-- Python ≥3.11
+- Python 3.11–3.13 (`environment.yml` bounds it: the conda-forge `netcdf4`
+  build for 3.14 warns about the numpy ABI)
 - mamba/conda
 
 ### Setup
 
-1. **Clone repositories:**
+1. **Clone the repository:**
 ```bash
-git clone https://github.com/opera-adt/venti.git
 git clone https://github.com/opera-adt/cal-disp.git
 ```
 
@@ -28,11 +28,8 @@ mamba env create --name my-cal-env --file cal-disp/environment.yml
 conda activate my-cal-env
 ```
 
-3. **Install packages:**
+3. **Install the package:**
 ```bash
-# Install venti
-python -m pip install -e venti/
-
 # Install cal-disp with download capabilities
 python -m pip install -e "cal-disp[download]"
 
@@ -40,7 +37,39 @@ python -m pip install -e "cal-disp[download]"
 python -m pip install -e cal-disp/
 ```
 
-**Docker:** See [Docker_README](docker/README.md)
+This installs [Venti](https://github.com/opera-adt/Venti) at the commit
+pinned in `pyproject.toml` (the one the golden dataset and the regression
+tests were produced with). To develop against a Venti checkout instead,
+`pip install -e venti/` afterwards. Keep the compiled packages (`netcdf4`,
+`h5py`, `gdal`, `rasterio`, ...) from conda-forge as `environment.yml` lists
+them: the PyPI `netCDF4` wheel bundles a different HDF5 than `h5py`/GDAL link
+against, which can crash multi-threaded reads.
+
+### Setup with pixi
+
+[pixi](https://pixi.sh) creates the same conda + pip environment from the
+`[tool.pixi]` tables in `pyproject.toml`, locked in `pixi.lock`, with no
+manual activation step:
+
+```bash
+git clone https://github.com/opera-adt/cal-disp.git
+cd cal-disp
+pixi install            # runtime environment with the download extra
+pixi run cal-disp --help
+
+pixi run -e dev test    # run the test suite in the dev environment
+pixi run -e dev lint    # pre-commit (ruff, black, mypy) on all files
+pixi shell -e dev       # open a shell with the dev environment activated
+```
+
+Other tasks: `pixi run build-golden` and `pixi run validate --golden-dir DIR`
+wrap the scripts in `scripts/`. Re-run `pixi install` after pulling changes
+to `pyproject.toml` or `pixi.lock`.
+
+**Docker:** See [docker/README.md](docker/README.md). The image installs the
+conda layer from `docker/conda-lock.txt`; regenerate that lock with
+`docker/create-lockfile.sh --file environment.yml [--no-docker] > docker/conda-lock.txt`
+whenever `environment.yml` changes.
 
 ---
 
@@ -118,7 +147,9 @@ cal-disp config \
     --work-dir scratch/
 ```
 
-This writes `runconfig.yaml` to the work directory (`scratch/` by default). Use `-c` to set a custom output path.
+This writes `runconfig.yaml` into the work directory (`--work-dir`). Use
+`-c PATH` to write it elsewhere: the path is used as given, directories included
+(e.g. `-c configs/runconfig.yaml`).
 
 **Optional flags:**
 
@@ -126,10 +157,8 @@ This writes `runconfig.yaml` to the work directory (`scratch/` by default). Use 
 |---|---|
 | `--ref-tropo-files` | TROPO files for reference date (repeat for multiple) |
 | `--sec-tropo-files` | TROPO files for secondary date (repeat for multiple) |
-| `--iono-files` | Ionospheric correction files |
-| `--tiles-files` | Calibration tile bounds files |
-| `--mask-file` | Byte mask (0=invalid, 1=good) |
-| `--algorithm-overrides` | Frame-specific parameter overrides (JSON) |
+| `--mask-file` | Byte mask (0=invalid, 1=good); recorded but **not applied** in this release (the run logs a warning) |
+| `--algorithm-overrides` | Frame-specific parameter overrides (JSON), applied on top of `--algorithm-params`, e.g. `{"8882": {"downsample_factor": 3}}` |
 | `--defo-area-db` | Deforming areas database (GeoJSON) |
 | `--event-db` | Events database (GeoJSON) |
 | `-w` / `--n-workers` | Number of parallel workers (default: 4) |
@@ -154,12 +183,20 @@ Compare a new output against a reference product:
 ```bash
 cal-disp validate reference.nc output.nc
 
-# Custom tolerance
+# Custom tolerance (default 1e-6): --tolerance sets both --rtol and --atol
 cal-disp validate reference.nc output.nc --tolerance 1e-5
+cal-disp validate reference.nc output.nc --rtol 1e-5 --atol 1e-7
 
-# Validate only the main data group
+# Only the root, identification and metadata groups (skip the auxiliary group)
 cal-disp validate reference.nc output.nc --group main
 ```
+
+The comparison covers every group (a missing group is a failure), each
+variable's dtype, shape, attributes and values (reference zeros included), the
+CRS and grid transform, the identification and metadata values, and the browse
+PNG next to the output (at most 2048 px per side). Only build versions, the
+processing start time and the embedded runconfig are ignored. All differences
+are listed and the command exits with status 1 if there is any.
 
 ### Golden dataset
 
@@ -198,7 +235,7 @@ Key parameters in `configs/algorithm_parameters.yaml`:
 | `posting_meters` | `30.0` | DISP pixel spacing (30 m for DISP-S1) |
 | `downsample_factor` | `6` | Integer downsampling before surface fitting (1 = disabled) |
 | `calibration_surface_smoothing_method` | `gaussian` | Smoothing filter: `gaussian`, `gaussian_fft`, `hanning_fft`, `savitzky_golay` |
-| `unwrap_error_correction` | `true` | Apply watershed-based unwrap-error correction |
+| `unwrap_error_correction` | `false` | Venti region-offset unwrap-error correction (off: its mask-island segmentation quantises real signal into λ/2 steps) |
 
 ---
 

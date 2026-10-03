@@ -1,8 +1,20 @@
 """Build identification group for calibration products."""
 
-from datetime import datetime
+from __future__ import annotations
+
+from datetime import datetime, timezone
 
 import xarray as xr
+
+
+def iso_utc(dt: datetime) -> str:
+    """Datetime as ISO 8601 UTC with ``Z`` suffix, e.g. ``2022-01-11T00:26:51Z``.
+
+    Naive datetimes are taken as UTC; aware ones are converted.
+    """
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc)
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def build_identification_dataset(
@@ -174,34 +186,36 @@ def build_identification_dataset(
 
     # Temporal information
     data_vars["reference_datetime"] = xr.DataArray(
-        reference_datetime.isoformat(),
+        iso_utc(reference_datetime),
         attrs={
             "description": (
-                "Reference (earlier) acquisition datetime in ISO 8601 format"
+                "Reference (earlier) acquisition datetime, UTC, in ISO 8601 format"
             ),
             "long_name": "Reference Datetime",
             "dtype": "str",
-            "format": "ISO 8601",
+            "format": "ISO 8601 (YYYY-MM-DDThh:mm:ssZ)",
         },
     )
 
     data_vars["secondary_datetime"] = xr.DataArray(
-        secondary_datetime.isoformat(),
+        iso_utc(secondary_datetime),
         attrs={
-            "description": "Secondary (later) acquisition datetime in ISO 8601 format",
+            "description": (
+                "Secondary (later) acquisition datetime, UTC, in ISO 8601 format"
+            ),
             "long_name": "Secondary Datetime",
             "dtype": "str",
-            "format": "ISO 8601",
+            "format": "ISO 8601 (YYYY-MM-DDThh:mm:ssZ)",
         },
     )
 
     data_vars["processing_start_datetime"] = xr.DataArray(
-        processing_start_datetime.isoformat(),
+        iso_utc(processing_start_datetime),
         attrs={
             "description": "UTC datetime of the start of processing for this product",
             "long_name": "Processing Start Datetime",
             "dtype": "str",
-            "format": "ISO 8601",
+            "format": "ISO 8601 (YYYY-MM-DDThh:mm:ssZ)",
         },
     )
 
@@ -209,8 +223,12 @@ def build_identification_dataset(
     data_vars["bounding_polygon"] = xr.DataArray(
         bounding_polygon,
         attrs={
-            "description": "WKT representation of bounding polygon of the image",
+            "description": (
+                "WKT representation of the bounding polygon of the image in"
+                " geographic coordinates (longitude latitude, WGS 84)"
+            ),
             "long_name": "Bounding Polygon",
+            "units": "degrees",
             "dtype": "str",
             "format": "WKT",
         },
@@ -220,9 +238,11 @@ def build_identification_dataset(
         product_bounding_box,
         attrs={
             "description": (
-                "Opposite corners in UTM coordinates as (west, south, east, north)"
+                "Opposite corners (outer pixel edges) of the product in UTM"
+                " coordinates as (west, south, east, north)"
             ),
             "long_name": "Product Bounding Box",
+            "units": "meters",
             "dtype": "str",
         },
     )
@@ -425,7 +445,7 @@ def build_identification_dataset(
     data_vars["nodata_pixel_count"] = xr.DataArray(
         nodata_pixel_count,
         attrs={
-            "description": "Number of nodata pixels",
+            "description": "Number of nodata (NaN) pixels in the calibration layer",
             "long_name": "NoData Pixel Count",
             "dtype": "int64",
         },

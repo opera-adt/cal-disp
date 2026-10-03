@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+from io import StringIO
 from pathlib import Path
 
 from cal_disp._log import get_max_memory_usage, log_runtime
 from cal_disp._version import __version__
 from cal_disp.browse_image import make_browse_image_from_nc
 from cal_disp.config._algorithm import AlgorithmParameters
+from cal_disp.config._utils import _parse_algorithm_overrides
 from cal_disp.config.workflow import CalibrationWorkflow
 from cal_disp.workflow import run_calibration
 
 
 @log_runtime
-def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
+def run(
+    runconfig: CalibrationWorkflow,
+    debug: bool = False,
+    pge_runconfig: str | None = None,
+) -> Path:
     """Run the displacement calibration workflow.
 
     Parameters
@@ -20,6 +26,10 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
         Workflow configuration for the calibration.
     debug : bool, optional
         Enable debug logging. Default is False.
+    pge_runconfig : str, optional
+        Text of the PGE RunConfig YAML that was run, embedded in the product's
+        ``/metadata/pge_runconfig``. Default: the workflow configuration as
+        YAML.
 
     Returns
     -------
@@ -54,13 +64,40 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
         logger.error(f"Missing input files: {', '.join(missing)}")
         raise SystemExit(1)
 
-    # Load algorithm parameters
+    # Load algorithm parameters, then apply the frame-specific overrides
     algo_params = AlgorithmParameters.from_yaml(
         runconfig.dynamic_ancillary_options.algorithm_parameters_file
     )
+    sta = runconfig.static_ancillary_options
+    if sta and sta.algorithm_parameters_overrides_json:
+        frame_id = runconfig.input_options.frame_id
+        overrides = _parse_algorithm_overrides(
+            sta.algorithm_parameters_overrides_json, frame_id
+        )
+        if overrides:
+            logger.info(
+                "Algorithm parameter overrides for frame %s from %s: %s",
+                frame_id,
+                sta.algorithm_parameters_overrides_json,
+                overrides,
+            )
+            algo_params = algo_params.with_overrides(overrides)
+        else:
+            logger.info(
+                "No algorithm parameter overrides for frame %s in %s",
+                frame_id,
+                sta.algorithm_parameters_overrides_json,
+            )
 
     # Extract optional tropo file lists from dynamic ancillaries
     dyn = runconfig.dynamic_ancillary_options
+    if dyn.mask_file is not None:
+        logger.warning(
+            "mask_file (%s) is not applied in this release: only the masks of the"
+            " DISP product (recommended_mask, water_mask) and the event databases"
+            " are used",
+            dyn.mask_file,
+        )
     ref_tropo = (
         [Path(f) for f in dyn.reference_tropo_files]
         if dyn.reference_tropo_files
@@ -73,7 +110,6 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
     )
 
     # Extract optional static ancillary GeoJSON databases for event masking
-    sta = runconfig.static_ancillary_options
     defo_area_db = (
         Path(sta.deformation_area_database_json)
         if (sta and sta.deformation_area_database_json)
@@ -82,6 +118,11 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
     event_db = (
         Path(sta.event_database_json) if (sta and sta.event_database_json) else None
     )
+
+    if pge_runconfig is None:
+        buf = StringIO()
+        runconfig.to_yaml(buf, with_comments=False)
+        pge_runconfig = buf.getvalue()
 
     # Run calibration
     output_file = run_calibration(
@@ -100,9 +141,15 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
         n_workers=runconfig.worker_settings.n_workers,
         threads_per_worker=runconfig.worker_settings.threads_per_worker,
         work_directory=runconfig.work_directory,
-        pge_runconfig=str(runconfig._to_yaml_obj()),
+        pge_runconfig=pge_runconfig,
         calibration_reference_version=runconfig.input_options.unr_grid_version,
         calibration_reference_type=runconfig.input_options.unr_grid_type,
+        product_version=runconfig.product_version,
+        compression=runconfig.compression,
+        processing_facility=runconfig.processing_facility,
+        product_data_access=runconfig.product_data_access,
+        static_layers_data_access=runconfig.static_layers_data_access,
+        source_data_access=runconfig.source_data_access,
     )
 
     # Generate browse image

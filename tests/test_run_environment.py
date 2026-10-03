@@ -54,6 +54,7 @@ def _run(config_file: Path, cwd: Path, env: dict[str, str]) -> Path:
     return output
 
 
+@pytest.mark.slow  # two full `cal-disp run` subprocesses
 @pytest.mark.skipif(
     hasattr(os, "geteuid") and os.geteuid() == 0, reason="root ignores permissions"
 )
