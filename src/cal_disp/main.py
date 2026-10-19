@@ -3,8 +3,9 @@ from __future__ import annotations
 from io import StringIO
 from pathlib import Path
 
-from cal_disp._log import get_max_memory_usage, log_runtime
 from cal_disp._version import __version__
+
+from cal_disp._log import get_max_memory_usage, log_runtime
 from cal_disp.browse_image import make_browse_image_from_nc
 from cal_disp.config._algorithm import AlgorithmParameters
 from cal_disp.config._utils import _parse_algorithm_overrides

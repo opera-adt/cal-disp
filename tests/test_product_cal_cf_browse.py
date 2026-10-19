@@ -7,10 +7,10 @@ from pathlib import Path
 import h5py
 import numpy as np
 import xarray as xr
+from cal_disp._version import __version__
 from cal_product_helpers import write_product
 from PIL import Image
 
-from cal_disp._version import __version__
 from cal_disp.browse_image import (
     _resize_to_max_pixel_dim,
     make_browse_image_from_arr,

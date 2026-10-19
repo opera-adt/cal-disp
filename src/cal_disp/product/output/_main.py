@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import xarray as xr
-
 from cal_disp._version import __version__
 
 from ._utils import make_spatial_ref

@@ -18,8 +18,8 @@ from pathlib import Path
 import numpy as np
 import rasterio
 import xarray as xr
-
 from cal_disp._version import __version__
+
 from cal_disp.config._algorithm import AlgorithmParameters
 from cal_disp.product import CalProduct, DispProduct
 
