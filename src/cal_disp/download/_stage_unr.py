@@ -13,9 +13,14 @@ from requests.adapters import HTTPAdapter
 from tqdm.contrib.concurrent import thread_map
 from urllib3.util.retry import Retry
 
+from ._errors import DownloadError
+
 __all__ = [
+    "DEFAULT_TIMEOUT",
     "GRID_BASE_URLS",
+    "DownloadError",
     "create_session",
+    "download_file",
     "download_lookup_table",
     "load_lookup_table",
     "download_grid_file",
@@ -25,6 +30,15 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+# (connect, read) timeout in seconds for every request. Without a timeout a
+# stalled server keeps a PGE stage waiting forever (requests has no default).
+DEFAULT_TIMEOUT: tuple[float, float] = (10.0, 120.0)
+# Statuses worth a retry with backoff: rate limiting, transient server errors
+RETRY_STATUSES = (429, 500, 502, 503, 504)
+# Suffix of the file a download is streamed to before the atomic rename
+# (the same as geepers' downloader, which `download_file` delegates to)
+PART_SUFFIX = ".part"
 
 # Constants
 VALID_VERSIONS = {"0.1", "0.2", "0.3"}
@@ -83,11 +97,83 @@ def create_session(retries: int = 5, backoff: float = 1.0) -> requests.Session:
     retry_strategy = Retry(
         total=retries,
         backoff_factor=backoff,
-        status_forcelist=[502, 503, 504],
+        status_forcelist=list(RETRY_STATUSES),
+        allowed_methods=["GET", "HEAD"],
+        respect_retry_after_header=True,
     )
     adapter = HTTPAdapter(max_retries=retry_strategy)
     session.mount("https://", adapter)
+    session.mount("http://", adapter)
     return session
+
+
+def download_file(
+    url: str,
+    output_path: Path,
+    session: requests.Session | None = None,
+    timeout: tuple[float, float] = DEFAULT_TIMEOUT,
+) -> Path:
+    """Download ``url`` to ``output_path`` atomically, verifying the body.
+
+    Delegates to `geepers.gps_sources._download.download_file`, the copy of
+    this function geepers took over (Venti plan T26.2): the body streams to
+    ``<output_path>.part`` and is renamed into place only after the checks
+    pass, so an existing ``output_path`` is complete and a leftover
+    ``.part`` is re-downloaded. cal-disp adds its retrying session and keeps
+    its own `DownloadError`, which the CLI maps to an exit code.
+
+    Parameters
+    ----------
+    url : str
+        URL to fetch.
+    output_path : Path
+        Final location of the file.
+    session : requests.Session or None, optional
+        Session with retry logic. If None, a new session is created.
+    timeout : tuple[float, float], optional
+        ``(connect, read)`` timeout in seconds, by default `DEFAULT_TIMEOUT`.
+
+    Returns
+    -------
+    Path
+        ``output_path``.
+
+    Raises
+    ------
+    requests.HTTPError
+        On a non-2xx status (after the session's retries).
+    requests.Timeout or requests.ConnectionError
+        When the server does not answer within ``timeout``.
+    DownloadError
+        When the body is an HTML page instead of the file, or shorter than
+        the advertised ``Content-Length``.
+
+    """
+    from geepers.gps_sources._download import DownloadError as _GeepersError
+    from geepers.gps_sources._download import download_file as _download
+
+    try:
+        return _download(
+            url,
+            Path(output_path),
+            session=session if session is not None else create_session(),
+            timeout=timeout,
+        )
+    except _GeepersError as exc:
+        raise DownloadError(str(exc)) from exc
+
+
+def _is_staged(output_path: Path) -> bool:
+    """Whether a previous run left a complete file at ``output_path``.
+
+    Files are renamed into place only once complete (`download_file`), so an
+    existing, non-empty file is complete. A leftover ``.part`` is not.
+    """
+    part_path = output_path.with_name(output_path.name + PART_SUFFIX)
+    if part_path.exists():
+        logger.debug(f"Removing incomplete download {part_path}")
+        part_path.unlink()
+    return output_path.exists() and output_path.stat().st_size > 0
 
 
 def download_lookup_table(
@@ -120,6 +206,8 @@ def download_lookup_table(
         If version is not supported.
     requests.HTTPError
         If download fails.
+    DownloadError
+        If the server answered with an HTML page or a truncated body.
 
     Notes
     -----
@@ -144,21 +232,15 @@ def download_lookup_table(
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"grid_latlon_lookup_v{version}.txt"
 
-    # Skip if already downloaded
-    if output_path.exists():
+    # Skip if already downloaded (a leftover .part is not a download)
+    if _is_staged(output_path):
         logger.debug(f"Lookup table already exists: {output_path}")
         return output_path
 
     url = LOOKUP_URL.format(version=version)
     logger.info(f"Downloading lookup table from {url}")
 
-    if session is None:
-        session = create_session()
-
-    response = session.get(url)
-    response.raise_for_status()
-
-    output_path.write_bytes(response.content)
+    download_file(url, output_path, session=session)
     logger.info(f"Saved lookup table to {output_path}")
 
     return output_path
@@ -244,6 +326,8 @@ def download_grid_file(
         If version, or the grid type for this version/plate, is not supported.
     requests.HTTPError
         If download fails.
+    DownloadError
+        If the server answered with an HTML page or a truncated body.
 
     Notes
     -----
@@ -286,20 +370,11 @@ def download_grid_file(
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / grid_file_name(grid_id, plate, grid_type)
 
-    # Skip if already downloaded
-    if output_path.exists():
+    # Skip if already downloaded (a leftover .part is not a download)
+    if _is_staged(output_path):
         return output_path
 
-    # Download
-    if session is None:
-        session = create_session()
-
-    response = session.get(url)
-    response.raise_for_status()
-
-    output_path.write_bytes(response.content)
-
-    return output_path
+    return download_file(url, output_path, session=session)
 
 
 def download_grid_files(

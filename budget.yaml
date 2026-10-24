@@ -1,0 +1,22 @@
+# Dependency budget of the operational cal-disp install (Venti PRD R-O6, plan T26.4).
+# scripts/check_env_budget.py fails when a forbidden package is installed
+# without a recorded exception, or an exception is listed that no longer applies.
+forbidden:
+  - dask
+  - zarr
+  - matplotlib
+  - jupyter_core
+  - ipykernel
+  - notebook
+  - numba
+# Not forbidden: s3fs, aiohttp and fsspec come with opera-utils' own core
+# requirements (through Venti); asf_search only with the `download` extra.
+known_exceptions:
+  # Remove an entry in the same change that removes the package.
+  matplotlib: >-
+    browse PNG (cal_disp.browse_image). Replacing it with PIL + cmap changes a
+    delivered product file, so it is a decision for the v0.5 image (plan T49).
+# Peak memory of the golden run, GB (plan T26.5): `pixi run validate` must stay below.
+# 6.0 (owner 2026-10-14): the v0.5 golden run (frame table, remove-restore, fit
+# mask, extrapolated sigma) peaks at 5.75 GB; gamma at about 4 GB.
+peak_memory_gb: 6.0

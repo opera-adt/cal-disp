@@ -1,5 +1,6 @@
 """Build metadata group for calibration products."""
 
+import numpy as np
 import xarray as xr
 
 
@@ -19,6 +20,10 @@ def build_metadata_dataset(
     product_landing_page_doi: str | None = None,
     product_specification_document_id: str | None = None,
     pge_runconfig: str | None = None,
+    gnss_provenance_json: str | None = None,
+    algorithm_schema_version: int | None = None,
+    frame_parameters_version: str | None = None,
+    components_applied_json: str | None = None,
 ) -> xr.Dataset:
     """Build metadata dataset with algorithm and processing information.
 
@@ -55,6 +60,18 @@ def build_metadata_dataset(
         Product specification document identifier.
     pge_runconfig : str or None, optional
         Full PGE runconfig YAML file content.
+    gnss_provenance_json : str or None, optional
+        GNSS realisation record (Venti ``Provenance.as_dict()`` as JSON), written
+        as ``gnss_provenance`` when given (v0.5 route); VLM verifies it
+        (``venti.gnss.vlm``). Omitted otherwise, so the gamma product is
+        unchanged.
+    algorithm_schema_version : int or None, optional
+        Venti algorithm-parameters schema the run used (v0.5 route).
+    frame_parameters_version : str or None, optional
+        Version of the frame-parameter table the run applied (v0.5 route,
+        when the runconfig gives ``algorithm_parameters_overrides_json``).
+    components_applied_json : str or None, optional
+        Which ``cal_*`` components are in ``calibration`` (JSON, v0.5 route).
 
     Returns
     -------
@@ -224,6 +241,54 @@ def build_metadata_dataset(
                 "long_name": "PGE Run Configuration",
                 "dtype": "str",
                 "format": "YAML",
+            },
+        )
+
+    if gnss_provenance_json is not None:
+        data_vars["gnss_provenance"] = xr.DataArray(
+            gnss_provenance_json,
+            attrs={
+                "description": (
+                    "GNSS realisation the calibration was tied to (grid version and"
+                    " type, reference frame, snapshot, lookup hash, buffer, defo DB"
+                    " version, config and field hashes), JSON"
+                ),
+                "long_name": "GNSS Provenance",
+                "dtype": "str",
+            },
+        )
+
+    if algorithm_schema_version is not None:
+        data_vars["algorithm_schema_version"] = xr.DataArray(
+            np.int32(algorithm_schema_version),
+            attrs={
+                "description": "Venti algorithm-parameters schema version of the run",
+                "long_name": "Algorithm Schema Version",
+            },
+        )
+    if frame_parameters_version is not None:
+        data_vars["frame_parameters_version"] = xr.DataArray(
+            frame_parameters_version,
+            attrs={
+                "description": (
+                    "Version of the frame-parameter table (per-frame algorithm"
+                    " overrides) the run applied"
+                ),
+                "long_name": "Frame Parameters Version",
+                "dtype": "str",
+            },
+        )
+    if components_applied_json is not None:
+        data_vars["components_applied"] = xr.DataArray(
+            components_applied_json,
+            attrs={
+                "description": (
+                    "Components summed into calibration (cal_gnss_surface,"
+                    " cal_reference_offset, cal_tropo, cal_set, cal_unwrap_shift):"
+                    " true when applied, JSON"
+                ),
+                "long_name": "Components Applied",
+                "dtype": "str",
             },
         )
 

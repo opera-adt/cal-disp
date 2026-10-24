@@ -1,4 +1,4 @@
-# Version control
+# Version control (the version is passed in as --build-arg CAL_DISP_VERSION)
 .git
 .gitignore
 .github
@@ -13,12 +13,20 @@ __pycache__
 dist
 build
 .eggs
+src/cal_disp/_version.py
+
+# Environments
+.pixi
+pixi.lock
+.venv
+venv
 
 # Testing
 .pytest_cache
 .coverage
 htmlcov
 .tox
+tests
 
 # IDE
 .vscode
@@ -26,17 +34,27 @@ htmlcov
 *.swp
 *.swo
 
-# Docs
+# Docs and notebooks
+docs
 docs/_build
 *.rst~
+*.ipynb
 
 # Data files
 data/
 notebooks/
+test_golden/
+golden_data_disp_cal/
+delivery_data_cal_disp/
+tmp/
 *.nc
 *.tif
+*.tiff
 *.h5
 *.hdf5
+*.tenv8
+*.png
+*.parquet
 
 # Temp files
 *.log

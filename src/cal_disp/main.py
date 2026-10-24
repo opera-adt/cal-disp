@@ -1,17 +1,25 @@
 from __future__ import annotations
 
+from io import StringIO
 from pathlib import Path
+
+from threadpoolctl import threadpool_limits
 
 from cal_disp._log import get_max_memory_usage, log_runtime
 from cal_disp._version import __version__
 from cal_disp.browse_image import make_browse_image_from_nc
 from cal_disp.config._algorithm import AlgorithmParameters
+from cal_disp.config._utils import _overrides_version, _parse_algorithm_overrides
 from cal_disp.config.workflow import CalibrationWorkflow
 from cal_disp.workflow import run_calibration
 
 
 @log_runtime
-def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
+def run(
+    runconfig: CalibrationWorkflow,
+    debug: bool = False,
+    pge_runconfig: str | None = None,
+) -> Path:
     """Run the displacement calibration workflow.
 
     Parameters
@@ -20,6 +28,10 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
         Workflow configuration for the calibration.
     debug : bool, optional
         Enable debug logging. Default is False.
+    pge_runconfig : str, optional
+        Text of the PGE RunConfig YAML that was run, embedded in the product's
+        ``/metadata/pge_runconfig``. Default: the workflow configuration as
+        YAML.
 
     Returns
     -------
@@ -54,10 +66,34 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
         logger.error(f"Missing input files: {', '.join(missing)}")
         raise SystemExit(1)
 
-    # Load algorithm parameters
+    # Load algorithm parameters, then apply the frame-specific overrides
     algo_params = AlgorithmParameters.from_yaml(
         runconfig.dynamic_ancillary_options.algorithm_parameters_file
     )
+    sta = runconfig.static_ancillary_options
+    frame_parameters_version = None
+    if sta and sta.algorithm_parameters_overrides_json:
+        frame_parameters_version = _overrides_version(
+            sta.algorithm_parameters_overrides_json
+        )
+        frame_id = runconfig.input_options.frame_id
+        overrides = _parse_algorithm_overrides(
+            sta.algorithm_parameters_overrides_json, frame_id
+        )
+        if overrides:
+            logger.info(
+                "Algorithm parameter overrides for frame %s from %s: %s",
+                frame_id,
+                sta.algorithm_parameters_overrides_json,
+                overrides,
+            )
+            algo_params = algo_params.with_overrides(overrides)
+        else:
+            logger.info(
+                "No algorithm parameter overrides for frame %s in %s",
+                frame_id,
+                sta.algorithm_parameters_overrides_json,
+            )
 
     # Extract optional tropo file lists from dynamic ancillaries
     dyn = runconfig.dynamic_ancillary_options
@@ -73,7 +109,6 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
     )
 
     # Extract optional static ancillary GeoJSON databases for event masking
-    sta = runconfig.static_ancillary_options
     defo_area_db = (
         Path(sta.deformation_area_database_json)
         if (sta and sta.deformation_area_database_json)
@@ -83,27 +118,43 @@ def run(runconfig: CalibrationWorkflow, debug: bool = False) -> Path:
         Path(sta.event_database_json) if (sta and sta.event_database_json) else None
     )
 
-    # Run calibration
-    output_file = run_calibration(
-        disp_file=Path(runconfig.input_options.disp_file),
-        unr_grid_latlon_file=Path(runconfig.input_options.unr_grid_latlon_file),
-        unr_timeseries_dir=Path(runconfig.input_options.unr_timeseries_dir),
-        output_dir=runconfig.output_directory,
-        algorithm_parameters=algo_params,
-        dem_file=Path(dyn.dem_file),
-        los_file=Path(dyn.los_file),
-        reference_tropo_files=ref_tropo,
-        secondary_tropo_files=sec_tropo,
-        defo_area_db_json=defo_area_db,
-        event_db_json=event_db,
-        block_shape=runconfig.worker_settings.block_shape,
-        n_workers=runconfig.worker_settings.n_workers,
-        threads_per_worker=runconfig.worker_settings.threads_per_worker,
-        work_directory=runconfig.work_directory,
-        pge_runconfig=str(runconfig._to_yaml_obj()),
-        calibration_reference_version=runconfig.input_options.unr_grid_version,
-        calibration_reference_type=runconfig.input_options.unr_grid_type,
-    )
+    if pge_runconfig is None:
+        buf = StringIO()
+        runconfig.to_yaml(buf, with_comments=False)
+        pge_runconfig = buf.getvalue()
+
+    # Run calibration. worker_settings bound the CPU use: the BLAS/OpenMP
+    # thread pools are capped at n_workers x threads_per_worker (small
+    # instances, Venti T47); threads_per_worker also sets the gamma fit's jobs.
+    with threadpool_limits(limits=runconfig.worker_settings.total_threads):
+        output_file = run_calibration(
+            disp_file=Path(runconfig.input_options.disp_file),
+            unr_grid_latlon_file=Path(runconfig.input_options.unr_grid_latlon_file),
+            unr_timeseries_dir=Path(runconfig.input_options.unr_timeseries_dir),
+            output_dir=runconfig.output_directory,
+            algorithm_parameters=algo_params,
+            dem_file=Path(dyn.dem_file),
+            los_file=Path(dyn.los_file),
+            reference_tropo_files=ref_tropo,
+            secondary_tropo_files=sec_tropo,
+            defo_area_db_json=defo_area_db,
+            event_db_json=event_db,
+            mask_file=Path(dyn.mask_file) if dyn.mask_file is not None else None,
+            block_shape=runconfig.worker_settings.block_shape,
+            n_workers=runconfig.worker_settings.n_workers,
+            threads_per_worker=runconfig.worker_settings.threads_per_worker,
+            work_directory=runconfig.work_directory,
+            pge_runconfig=pge_runconfig,
+            frame_parameters_version=frame_parameters_version,
+            calibration_reference_version=runconfig.input_options.unr_grid_version,
+            calibration_reference_type=runconfig.input_options.unr_grid_type,
+            product_version=runconfig.product_version,
+            compression=runconfig.compression,
+            processing_facility=runconfig.processing_facility,
+            product_data_access=runconfig.product_data_access,
+            static_layers_data_access=runconfig.static_layers_data_access,
+            source_data_access=runconfig.source_data_access,
+        )
 
     # Generate browse image
     logger.info(f"Output product: {output_file}")

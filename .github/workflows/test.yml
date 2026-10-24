@@ -20,6 +20,12 @@ jobs:
         shell: micromamba-shell {0}
         run: pip install -e ".[test]"
 
+      - name: Dependency budget of the core install
+        shell: micromamba-shell {0}
+        # what `pip install cal-disp` (no extras) pulls in, from the installed metadata
+        run: python scripts/check_env_budget.py --closure cal-disp
       - name: Run tests
         shell: micromamba-shell {0}
-        run: pytest -v --maxfail=1 tests
+        # From the repository root: the configuration is [tool.pytest.ini_options]
+        # in pyproject.toml (testpaths, markers, filterwarnings=error, random seed)
+        run: pytest -v --maxfail=1

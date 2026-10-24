@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from collections.abc import Mapping
+from typing import Any, Literal, Optional
 
 from pydantic import Field, computed_field
+from venti.workflow.config import (
+    FrameOptions,
+    GnssOptions,
+    SurfaceOptions,
+    TropoOptions,
+    UncertaintyOptions,
+    UnwrapOptions,
+    WeightOptions,
+)
 
-from ._yaml import YamlModel
+from ._yaml import YamlModel, _computed_fields_exclude
 
 
 class SavitzkyGolayOptions(YamlModel):
@@ -51,7 +61,12 @@ class CalibrationOptions(YamlModel):
     reference_frame : str
         GNSS reference frame, ``'IGS20'`` or ``'IGS14'``.
     unwrap_error_correction : bool
-        Apply watershed-based unwrap-error correction before fitting.
+        Apply Venti's region-offset unwrap-error correction before fitting.
+        Off by default: Venti segments the *valid mask* into connected
+        components (not phase discontinuities) and shifts every component
+        whose median differs from the first one by more than half a cycle
+        (λ/2 = 27.7 mm for Sentinel-1), which quantises genuine
+        long-wavelength signal into λ/2 steps before the plane fit.
     apply_tropo_correction : bool
         Apply the tropospheric correction when the runconfig lists tropo
         files; ``False`` ignores them.
@@ -114,15 +129,24 @@ class CalibrationOptions(YamlModel):
     )
 
     unwrap_error_correction: bool = Field(
-        default=True,
+        default=False,
         description=(
-            "Apply watershed-based unwrap-error correction to the displacement "
-            "field before fitting the calibration surface."
+            "Apply Venti's region-offset unwrap-error correction to the "
+            "displacement field before fitting the calibration surface. "
+            "Disabled by default: Venti segments the valid-data mask into "
+            "connected components (islands), not into regions bounded by phase "
+            "discontinuities, and shifts every island whose median differs from "
+            "the first island by more than half an unwrapping cycle (lambda/2 = "
+            "27.7 mm for Sentinel-1). On a real frame this quantises the "
+            "long-wavelength signal the calibration is meant to fit into "
+            "lambda/2 steps. Enable only once the segmentation is driven by "
+            "phase discontinuities (or connected components) and validated "
+            "against products with known unwrapping errors."
         ),
     )
 
     apply_tropo_correction: bool = Field(
-        default=True,
+        default=False,
         description=(
             "Apply the tropospheric correction when the runconfig lists tropo "
             "files (removed before the fit and added back to the surface). "
@@ -140,7 +164,7 @@ class CalibrationOptions(YamlModel):
     )
 
     window_size_meters: float = Field(
-        default=30000.0,
+        default=600000.0,
         gt=0,
         description=(
             "Side length of the moving window used for polynomial plane fitting, "
@@ -235,7 +259,7 @@ class CalibrationOptions(YamlModel):
     )
 
     calibration_surface_smoothing_sigma: Optional[float] = Field(
-        default=None,
+        default=0.0,
         ge=0,
         description=(
             "Sigma (pixels) for gaussian and FFT smoothing methods.  "
@@ -252,6 +276,54 @@ class CalibrationOptions(YamlModel):
         ),
     )
 
+    # Venti algorithm_parameters schema v2 (Venti plan T19, T37.1). Since v0.5
+    # (plan T49) the defaults are the v0.5 algorithm validated in T46 and the
+    # confirmation run (configs/algorithm_parameters_v05.yaml); gamma is
+    # reproduced with configs/algorithm_parameters_gamma.yaml. Per-frame
+    # settings come from the frame table (algorithm_parameters_overrides_json).
+    surface: SurfaceOptions = Field(
+        default_factory=lambda: SurfaceOptions(
+            method="loclin",
+            cutoff_wavelength_meters=50000.0,
+            fill_gaps=True,
+            two_pass=True,
+        ),
+        description=(
+            "Calibration surface estimator: 'windowed_plane' (gamma) or 'loclin'"
+            " (local-linear kernel with a half-response cutoff, two passes)."
+        ),
+    )
+    weights: WeightOptions = Field(
+        default_factory=lambda: WeightOptions(coherence_power=8.0, robust=True),
+        description="Fit weights of the loclin surface (coherence power, robust).",
+    )
+    tropo: TropoOptions = Field(
+        default_factory=TropoOptions,
+        description=(
+            "Tropospheric correction mode: 'legacy' follows"
+            " apply_tropo_correction; 'off', 'full', 'stratified' or 'auto'"
+            " (from the DEM relief)."
+        ),
+    )
+    gnss: GnssOptions = Field(
+        default_factory=lambda: GnssOptions(
+            buffer_meters=50000.0, exclude_defo_nodes=True, reinterpolate_excluded=True
+        ),
+        description="GNSS grid handling (buffer, defo-node exclusion).",
+    )
+    uncertainty: UncertaintyOptions = Field(
+        default_factory=lambda: UncertaintyOptions(k_grid=3.9, extrapolate_sigma=True),
+        description="calibration_std model of the loclin surface (sigma_CAL).",
+    )
+    unwrap: UnwrapOptions = Field(
+        default_factory=UnwrapOptions,
+        description="Unwrap-error correction details (used when it is enabled).",
+    )
+    frame: FrameOptions = Field(
+        default_factory=FrameOptions,
+        description="Frame-level facts from the frame-parameter table (plate).",
+    )
+
     @computed_field  # type: ignore[misc]
     @property
     def window_size_pixels(self) -> int:
@@ -259,11 +331,7 @@ class CalibrationOptions(YamlModel):
         return max(1, int(self.window_size_meters / self.posting_meters))
 
     def to_venti(self):
-        """Venti ``CalibrationOptions`` with these settings.
-
-        Options Venti does not take from its config (downsampling) are
-        passed to ``estimate_calibration_surface`` separately.
-        """
+        """Return Venti's ``CalibrationOptions`` with these settings."""
         from venti.workflow.config import CalibrationOptions as VentiOptions
 
         return VentiOptions(
@@ -290,6 +358,16 @@ VENTI_OPTIONS = {
     "calibration_surface_smoothing_method",
     "calibration_surface_smoothing_sigma",
     "savitzky_golay",
+    "downsample_factor",
+    "downsample_method",
+    "downsample_weighted",
+    "surface",
+    "weights",
+    "tropo",
+    "gnss",
+    "uncertainty",
+    "unwrap",
+    "frame",
 }
 # Venti options cal-disp does not expose: each run has its own GNSS cache.
 VENTI_OPTIONS_NOT_EXPOSED = {"recompute_gnss"}
@@ -324,3 +402,47 @@ class AlgorithmParameters(YamlModel):
     def create_default(cls) -> "AlgorithmParameters":
         """Create algorithm parameters with default values."""
         return cls()
+
+    def with_overrides(self, overrides: Mapping[str, Any]) -> "AlgorithmParameters":
+        """Return a validated copy with `overrides` applied.
+
+        Parameters
+        ----------
+        overrides : Mapping[str, Any]
+            Frame-specific values, e.g. one entry of the
+            ``algorithm_parameters_overrides_json`` file. Keys are either
+            option groups (``{"calibration_options": {"downsample_factor": 3}}``)
+            or, as a shorthand, options of ``calibration_options``
+            (``{"downsample_factor": 3}``). Nested options are merged.
+
+        Returns
+        -------
+        AlgorithmParameters
+            New instance; ``self`` is returned unchanged for empty overrides.
+
+        Raises
+        ------
+        pydantic.ValidationError
+            For an unknown option or an invalid value.
+
+        """
+        if not overrides:
+            return self
+
+        def _merge(base: dict[str, Any], new: Mapping[str, Any]) -> dict[str, Any]:
+            for key, value in new.items():
+                if isinstance(value, Mapping) and isinstance(base.get(key), dict):
+                    _merge(base[key], value)
+                else:
+                    base[key] = value
+            return base
+
+        # Without computed fields: they would be rejected as extra inputs
+        data = self.model_dump(exclude=_computed_fields_exclude(self))
+        groups = set(type(self).model_fields)
+        for key, value in overrides.items():
+            if key in groups:
+                _merge(data, {key: value})
+            else:
+                _merge(data["calibration_options"], {key: value})
+        return type(self).model_validate(data)

@@ -13,6 +13,19 @@ from rasterio.transform import Affine
 from rasterio.warp import transform_bounds
 
 
+def _promote_half_float(data: np.ndarray) -> np.ndarray:
+    """Return `data` as float32 if it is float16, unchanged otherwise.
+
+    The DISP-S1-STATIC DEM GeoTIFF is stored as float16.  Kept in that dtype,
+    any array derived from it (e.g. the tropospheric delay interpolated onto
+    the DEM surface) would be quantised to ~2 mm steps, so the layer is
+    promoted as soon as it is read.
+    """
+    if data.dtype == np.float16:
+        return data.astype(np.float32)
+    return data
+
+
 @dataclass
 class StaticLayer:
     """OPERA DISP-S1-STATIC layer.
@@ -105,7 +118,7 @@ class StaticLayer:
                     f"Band {band} out of range. File has {src.count} bands."
                 )
 
-            data = src.read(band)
+            data = _promote_half_float(src.read(band))
 
             if masked and src.nodata is not None:
                 data = np.ma.masked_equal(data, src.nodata)
@@ -145,7 +158,7 @@ class StaticLayer:
         with rasterio.open(self.path) as src:
             bands = []
             for band_idx in range(1, src.count + 1):
-                data = src.read(band_idx)
+                data = _promote_half_float(src.read(band_idx))
                 if masked and src.nodata is not None:
                     data = np.ma.masked_equal(data, src.nodata)
                 bands.append(data)

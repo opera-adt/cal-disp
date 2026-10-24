@@ -130,6 +130,13 @@ def format_summary_section(
     return lines
 
 
+def _overrides_version(overrides_file: Path | str) -> str | None:
+    """Top-level ``version`` of an overrides file (Venti's frame table), if any."""
+    with open(overrides_file) as f:
+        version = json.load(f).get("version")
+    return None if version is None else str(version)
+
+
 def _parse_algorithm_overrides(
     overrides_file: Path | str | None, frame_id: int | str
 ) -> dict[str, Any]:
@@ -139,7 +146,14 @@ def _parse_algorithm_overrides(
 
     with open(overrides_file) as f:
         overrides = json.load(f)
-        # Handle both {"data": {frame_id: ...}} and {frame_id: ...} formats
-        if "data" in overrides:
-            return overrides["data"].get(str(frame_id), {})
-        return overrides.get(str(frame_id), {})
+    # Handle both {"data": {frame_id: ...}} and {frame_id: ...} formats
+    table = overrides["data"] if "data" in overrides else overrides
+    # Venti's frame table keys frames zero-padded to five digits ("08882");
+    # older override files use the bare number ("8882")
+    keys = [k for k in dict.fromkeys((str(int(frame_id)), f"{int(frame_id):05d}"))
+            if k in table]  # fmt: skip
+    if len(keys) > 1:
+        raise ValueError(
+            f"{overrides_file}: frame {frame_id} appears under both keys {keys}"
+        )
+    return table[keys[0]] if keys else {}

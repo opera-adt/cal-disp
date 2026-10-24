@@ -20,7 +20,8 @@
 # --------------------
 #   configs/        algorithm_parameters.yaml, runconfig.yaml (paths relative
 #                   to the parent of DIR, e.g. the folder mounted at /home/work)
-#   input_data/     disp/, static_input/, tropo/, gnss/
+#   input_data/     disp/, static_input/, tropo/, gnss/,
+#                   static_ancillary/ (Venti frame table, area and event databases)
 #   golden_output/  golden product (.nc, .png)
 #   output/         empty; test products from run_validation.sh or cal-disp run
 #
@@ -39,6 +40,7 @@
 #   cal-disp validate DIR/golden_output/<golden>.nc DIR/output/<test>.nc
 
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Golden case
 FRAME_ID=8882
@@ -76,7 +78,7 @@ if compgen -G "${D}/golden_output/OPERA_L4_DISP-CAL-S1_*.nc" > /dev/null; then
     echo "ERROR: ${D}/golden_output already has a golden product; remove it first." >&2
     exit 1
 fi
-mkdir -p "${D}"/configs "${D}"/input_data/{disp,static_input,tropo,gnss} \
+mkdir -p "${D}"/configs "${D}"/input_data/{disp,static_input,tropo,gnss,static_ancillary} \
     "${D}"/golden_output "${D}"/output
 
 DISP_FILE="${D}/input_data/disp/${DISP_NAME}.nc"
@@ -118,30 +120,25 @@ done
 
 # 2. Configs
 echo "[2/4] Writing configs..."
-cat > "${D}/configs/algorithm_parameters.yaml" <<'EOF'
-calibration_options:
-  grid_type: constant
-  reference_frame: IGS20
-  unwrap_error_correction: true
-  apply_tropo_correction: true
-  apply_solid_earth_tide_correction: true
-  window_size_meters: 600000.0
-  posting_meters: 30.0
-  downsample_factor: 6
-  downsample_method: mean
-  downsample_weighted: false
-  event_mask_buffer_pixels: 0
-  residual_outlier_mad_threshold:
-  residual_region_mad_threshold:
-  residual_region_min_pixels: 20
-  mask_fit_residual_outliers: true
-  weight_fit_by_gnss_uncertainty: false
-  calibration_surface_smoothing_method: gaussian
-  calibration_surface_smoothing_sigma: 0.0
-  savitzky_golay:
-    window_length: 51
-    polyorder: 3
-EOF
+# v0.5 configuration (Venti plan T49; VnV sign-off 2026-10-15): the repo's
+# configs/algorithm_parameters_v05.yaml, and the static ancillaries production
+# uses: the materialized Venti frame table and the area and event databases
+# of the installed Venti. Gamma 0.3 (decision 0001) is reproduced with
+# configs/algorithm_parameters_gamma.yaml.
+cp "${SCRIPT_DIR}/../configs/algorithm_parameters_v05.yaml" "${D}/configs/algorithm_parameters.yaml"
+ANC="${D}/input_data/static_ancillary"
+python - "${ANC}" <<'PY'
+import shutil, sys
+from pathlib import Path
+
+import venti
+from venti.frames import load_frame_table
+
+out = Path(sys.argv[1])
+load_frame_table().write(out / "frame_parameters.json", materialize=True)
+for name in ("defo_area_db_v1.geojson", "event_db_v1.geojson"):
+    shutil.copy(Path(venti.__file__).parent / "data" / name, out / name)
+PY
 
 cal-disp config \
     -d  "${DISP_FILE}" \
@@ -155,11 +152,13 @@ cal-disp config \
     --ref-tropo-files "${REF_TROPO}" \
     --sec-tropo-files "${SEC_TROPO}" \
     -a  "${D}/configs/algorithm_parameters.yaml" \
+    --algorithm-overrides "${ANC}/frame_parameters.json" \
+    --defo-area-db "${ANC}/defo_area_db_v1.geojson" \
+    --event-db "${ANC}/event_db_v1.geojson" \
     -o  "${D}/output" \
     --work-dir "${D}/output/_work" \
     --keep-relative \
-    -c  runconfig.yaml > /dev/null
-mv "${D}/output/_work/runconfig.yaml" "${D}/configs/runconfig.yaml"
+    -c  "${D}/configs/runconfig.yaml" > /dev/null
 rm -rf "${D}/output/_work"
 
 # 3. Golden run

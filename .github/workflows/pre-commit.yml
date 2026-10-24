@@ -1,0 +1,22 @@
+name: pre-commit
+on:
+  pull_request:
+  push:
+    branches: [main, gamma-release]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # the dev env carries the hooks' dependencies (mypy needs the stubs)
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          environments: dev
+          cache: true
+      - name: pre-commit on every file
+        run: pixi run -e dev lint
