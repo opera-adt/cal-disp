@@ -74,6 +74,13 @@ DEM_FILE=$(find "${INPUT_DIR}/static_input" -name "*_dem.tif" -type f | head -n 
 LOOKUP_FILE=$(find "${INPUT_DIR}/gnss" -name "grid_latlon_lookup_v*.txt" -type f | head -n 1)
 GNSS_DIR="${INPUT_DIR}/gnss"
 ALGO_FILE="${CONFIGS_DIR}/algorithm_parameters.yaml"
+# v0.5 goldens carry the static ancillaries production uses (Venti frame
+# table, area and event databases); pass whichever the golden has
+ANC_DIR="${INPUT_DIR}/static_ancillary"
+ANC_ARGS=()
+[[ -f "${ANC_DIR}/frame_parameters.json" ]] && ANC_ARGS+=(--algorithm-overrides "${ANC_DIR}/frame_parameters.json")
+[[ -f "${ANC_DIR}/defo_area_db_v1.geojson" ]] && ANC_ARGS+=(--defo-area-db "${ANC_DIR}/defo_area_db_v1.geojson")
+[[ -f "${ANC_DIR}/event_db_v1.geojson" ]] && ANC_ARGS+=(--event-db "${ANC_DIR}/event_db_v1.geojson")
 mapfile -t REFERENCE_NCS < <(find "${REFERENCE_DIR}" -maxdepth 1 -name "OPERA_L4_DISP-CAL-S1_*.nc" -type f)
 if [[ "${#REFERENCE_NCS[@]}" -gt 1 ]]; then
     echo "ERROR: ${#REFERENCE_NCS[@]} reference products in ${REFERENCE_DIR}; keep exactly one." >&2
@@ -95,7 +102,7 @@ for f in "${DISP_FILE}" "${LOS_FILE}" "${DEM_FILE}" "${LOOKUP_FILE}" "${ALGO_FIL
 done
 
 # Parse UNR version from lookup filename (e.g. grid_latlon_lookup_v0.3.txt → "0.3")
-UNR_VERSION=$(basename "${LOOKUP_FILE}" | grep -oP 'v\K[\d.]+')
+UNR_VERSION=$(basename "${LOOKUP_FILE}" | grep -oP 'v\K\d+(\.\d+)*')
 if [[ -z "${UNR_VERSION}" ]]; then
     echo "ERROR: Cannot determine UNR version from lookup filename: $(basename "${LOOKUP_FILE}")" >&2
     exit 1
@@ -141,6 +148,7 @@ cal-disp config \
     --ref-tropo-files "${REF_TROPO_FILE}" \
     --sec-tropo-files "${SEC_TROPO_FILE}" \
     -a  "${ALGO_FILE}" \
+    ${ANC_ARGS[@]+"${ANC_ARGS[@]}"} \
     --frame-id "${FRAME_ID}" \
     -o  "${TEST_OUTPUT_DIR}" \
     --work-dir "${WORK_DIR}" \

@@ -4,17 +4,48 @@ from pathlib import Path
 
 import click
 
+from cal_disp.validate import DEFAULT_TOLERANCE
+
+
+def _resolve_tolerances(
+    rtol: float | None, atol: float | None, tolerance: float | None
+) -> tuple[float, float]:
+    """Resolve --rtol/--atol/--tolerance to one (rtol, atol) pair."""
+    if tolerance is not None:
+        if rtol is not None or atol is not None:
+            raise click.UsageError("--tolerance cannot be combined with --rtol/--atol")
+        return tolerance, tolerance
+    return (
+        DEFAULT_TOLERANCE if rtol is None else rtol,
+        DEFAULT_TOLERANCE if atol is None else atol,
+    )
+
 
 @click.command("validate")
 @click.argument("reference", type=click.Path(exists=True, path_type=Path))
 @click.argument("test", type=click.Path(exists=True, path_type=Path))
 @click.option(
+    "--rtol",
+    type=float,
+    default=None,
+    help=(
+        f"Relative tolerance for floating point values [default: {DEFAULT_TOLERANCE}]."
+    ),
+)
+@click.option(
+    "--atol",
+    type=float,
+    default=None,
+    help=(
+        f"Absolute tolerance for floating point values [default: {DEFAULT_TOLERANCE}]."
+    ),
+)
+@click.option(
     "--tolerance",
     "-t",
     type=float,
-    default=1e-6,
-    show_default=True,
-    help="Tolerance for floating point comparison.",
+    default=None,
+    help="Shortcut setting both --rtol and --atol.",
 )
 @click.option(
     "--group",
@@ -29,13 +60,17 @@ def validate_cli(
     ctx: click.Context,
     reference: Path,
     test: Path,
-    tolerance: float,
+    rtol: float | None,
+    atol: float | None,
+    tolerance: float | None,
     group: str,
 ) -> None:
     """Validate a DISP-CAL product against a reference.
 
-    Compares TEST product against REFERENCE product and reports differences.
-    Validates structure (dimensions, types) and data values within tolerance.
+    Compares TEST product against REFERENCE product and reports every
+    difference: groups, variables (dtype, shape, attributes, values), CRS and
+    grid transform, identification/metadata values, and the browse image.
+    Exits with status 1 on any difference.
 
     Examples
     --------
@@ -43,9 +78,10 @@ def validate_cli(
 
         cal-disp validate reference.nc test.nc
 
-    With custom tolerance:
+    With custom tolerances:
 
         cal-disp validate reference.nc test.nc --tolerance 1e-5
+        cal-disp validate reference.nc test.nc --rtol 1e-5 --atol 1e-7
 
     Validate only main group:
 
@@ -58,10 +94,12 @@ def validate_cli(
     debug = ctx.obj.get("debug", False)
     setup_logging(logger_name="cal_disp", level="DEBUG" if debug else "INFO")
 
+    rtol, atol = _resolve_tolerances(rtol, atol, tolerance)
     success = compare_cal_products(
         reference_file=reference,
         test_file=test,
-        tolerance=tolerance,
+        rtol=rtol,
+        atol=atol,
         group=group,
     )
 
@@ -74,12 +112,27 @@ def validate_cli(
     "golden_dir", type=click.Path(exists=True, file_okay=False, path_type=Path)
 )
 @click.option(
+    "--rtol",
+    type=float,
+    default=None,
+    help=(
+        f"Relative tolerance for floating point values [default: {DEFAULT_TOLERANCE}]."
+    ),
+)
+@click.option(
+    "--atol",
+    type=float,
+    default=None,
+    help=(
+        f"Absolute tolerance for floating point values [default: {DEFAULT_TOLERANCE}]."
+    ),
+)
+@click.option(
     "--tolerance",
     "-t",
     type=float,
-    default=1e-6,
-    show_default=True,
-    help="Tolerance for floating point comparison.",
+    default=None,
+    help="Shortcut setting both --rtol and --atol.",
 )
 @click.option(
     "--group",
@@ -93,7 +146,9 @@ def validate_cli(
 def validate_golden_cli(
     ctx: click.Context,
     golden_dir: Path,
-    tolerance: float,
+    rtol: float | None,
+    atol: float | None,
+    tolerance: float | None,
     group: str,
 ) -> None:
     r"""Re-run the calibration on golden inputs and compare against the reference.
@@ -245,10 +300,12 @@ def validate_golden_cli(
     click.echo("[3/3] Validating output...")
     from cal_disp.validate import compare_cal_products
 
+    rtol, atol = _resolve_tolerances(rtol, atol, tolerance)
     success = compare_cal_products(
         reference_file=ref_files[0],
         test_file=test_files[0],
-        tolerance=tolerance,
+        rtol=rtol,
+        atol=atol,
         group=group,
     )
 

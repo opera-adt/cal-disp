@@ -1,16 +1,99 @@
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
+import h5py
+import numpy as np
 import rasterio
 import xarray as xr
 from rasterio.crs import CRS
 from rasterio.transform import Affine
 from rasterio.warp import transform_bounds
+
+logger = logging.getLogger(__name__)
+
+# DISP product metadata carried into the DISP-CAL product: name -> HDF5 path
+DISP_METADATA_PATHS: dict[str, str] = {
+    "platform_id": "/metadata/platform_id",
+    "absolute_orbit_number": "/identification/absolute_orbit_number",
+    "track_number": "/identification/track_number",
+    "orbit_pass_direction": "/identification/orbit_pass_direction",
+    "look_direction": "/identification/look_direction",
+    "instrument_name": "/identification/instrument_name",
+    "radar_band": "/identification/radar_band",
+    "radar_wavelength": "/identification/radar_wavelength",
+    "acquisition_mode": "/identification/acquisition_mode",
+    "source_data_satellite_names": "/identification/source_data_satellite_names",
+    "source_data_dem_name": "/identification/source_data_dem_name",
+    "source_data_imaging_geometry": "/identification/source_data_imaging_geometry",
+    "product_data_access": "/identification/product_data_access",
+    "static_layers_data_access": "/identification/static_layers_data_access",
+    "ceos_analysis_ready_data_document_identifier": (
+        "/identification/ceos_analysis_ready_data_document_identifier"
+    ),
+    "ceos_analysis_ready_data_product_type": (
+        "/identification/ceos_analysis_ready_data_product_type"
+    ),
+    "bounding_polygon": "/identification/bounding_polygon",
+    "processing_facility": "/identification/processing_facility",
+}
+
+
+def _scalar(value: Any) -> Any:
+    """Python scalar from an HDF5 scalar dataset value."""
+    if isinstance(value, np.ndarray):
+        value = value.item() if value.size == 1 else value.tolist()
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
+def read_disp_metadata(
+    path: Path | str, fields: dict[str, str] | None = None
+) -> dict[str, Any]:
+    """Read scalar metadata of a DISP product (``/identification``, ``/metadata``).
+
+    Parameters
+    ----------
+    path : Path or str
+        DISP-S1 NetCDF product.
+    fields : dict[str, str], optional
+        ``{name: hdf5_path}`` of the datasets to read. Default is
+        ``DISP_METADATA_PATHS``.
+
+    Returns
+    -------
+    dict[str, Any]
+        ``{name: value}``; a field missing from the product is ``None`` (a
+        WARNING is logged for each).
+
+    """
+    if fields is None:
+        fields = DISP_METADATA_PATHS
+    values: dict[str, Any] = {}
+    missing: list[str] = []
+    with h5py.File(path, "r") as f:
+        for name, h5_path in fields.items():
+            if h5_path in f and isinstance(f[h5_path], h5py.Dataset):
+                values[name] = _scalar(f[h5_path][()])
+            else:
+                values[name] = None
+                missing.append(h5_path)
+    if missing:
+        logger.warning(
+            "%s has no %s; the DISP-CAL product will carry fallback values for"
+            " these fields",
+            Path(path).name,
+            ", ".join(missing),
+        )
+    return values
 
 
 @dataclass
@@ -207,6 +290,20 @@ class DispProduct:
 
         """
         return self.open_dataset(group="corrections")
+
+    def read_metadata(self) -> dict[str, Any]:
+        """Scalar ``/identification`` and ``/metadata`` fields used by cal-disp.
+
+        See ``DISP_METADATA_PATHS`` for the fields; a missing one is ``None``.
+
+        Examples
+        --------
+        >>> meta = product.read_metadata()
+        >>> meta["track_number"], meta["orbit_pass_direction"]
+        (34, 'Ascending')
+
+        """
+        return read_disp_metadata(self.path)
 
     def get_epsg(self) -> int | None:
         """Get EPSG code from spatial reference.

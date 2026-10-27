@@ -54,10 +54,9 @@ class TestOutputOptions:
         assert options.product_version == "2.5"
 
     def test_custom_format(self):
-        """Should accept custom output format."""
-        options = OutputOptions(output_format="hdf5")
-
-        assert options.output_format == "hdf5"
+        """Only netcdf is written: another format is rejected, not ignored."""
+        with pytest.raises(ValueError, match="not supported in this release"):
+            OutputOptions(output_format="hdf5")
 
     def test_disable_compression(self):
         """Should allow disabling compression."""

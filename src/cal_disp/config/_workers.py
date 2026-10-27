@@ -42,8 +42,8 @@ class WorkerSettings(YamlModel):
         ge=1,
         le=256,  # Reasonable upper limit
         description=(
-            "Number of workers to use in dask.Client. Typically set to the number "
-            "of physical CPU cores or less. Default: 4"
+            "Worker count; with threads_per_worker it caps the run's BLAS/OpenMP "
+            "thread pools at n_workers * threads_per_worker. Default: 4"
         ),
     )
 
@@ -52,17 +52,16 @@ class WorkerSettings(YamlModel):
         ge=1,
         le=32,  # Reasonable upper limit
         description=(
-            "Number of threads per worker in dask.Client. Controls parallelism "
-            "within each worker. Default: 2"
+            "Threads per worker: the jobs of the gamma windowed fit, and with "
+            "n_workers the cap on BLAS/OpenMP threads. Default: 2"
         ),
     )
 
     block_shape: Tuple[int, int] = Field(
         default=(128, 128),
         description=(
-            "Size (rows, columns) of blocks of data to load at a time. "
-            "Larger blocks use more memory but may be more efficient. "
-            "Must be positive integers. Default: (128, 128)"
+            "Reserved, not used: the run reads its layers in row blocks of its "
+            "own. Must be positive integers. Default: (128, 128)"
         ),
     )
 

@@ -158,7 +158,8 @@ class TestValidateCLI:
             )
 
             call_kwargs = mock_compare.call_args.kwargs
-            assert call_kwargs["tolerance"] == 1e-5
+            assert call_kwargs["rtol"] == 1e-5
+            assert call_kwargs["atol"] == 1e-5
 
     def test_with_group_selection(self, cli_runner: CliRunner, tmp_path: Path):
         """Should accept --group option."""

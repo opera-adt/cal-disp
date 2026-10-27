@@ -30,6 +30,7 @@ def create_config(
     output_dir: Path,
     work_dir: Path = Path.cwd(),
     config_name: str = DEFAULT_CONFIG_NAME,
+    config_file: Path | None = None,
     mask_file: Path | None = None,
     ref_tropo_files: list[Path] | None = None,
     sec_tropo_files: list[Path] | None = None,
@@ -38,6 +39,7 @@ def create_config(
     algorithm_overrides_json: Path | None = None,
     defo_area_db_json: Path | None = None,
     event_db_json: Path | None = None,
+    fit_mask_file: Path | None = None,
     n_workers: int = DEFAULT_N_WORKERS,
     threads_per_worker: int = DEFAULT_THREADS_PER_WORKER,
     block_shape: tuple[int, int] = DEFAULT_BLOCK_SHAPE,
@@ -73,23 +75,32 @@ def create_config(
     work_dir : Path, optional
         Working directory for temporary files. Default is current directory.
     config_name : str, optional
-        Name of configuration file to create. Default is "runconfig.yaml".
+        Name of the configuration file created in `work_dir` when `config_file`
+        is not given. Default is "runconfig.yaml".
+    config_file : Path or None, optional
+        Full path of the configuration file to create (its directory is
+        created if needed). Default is ``work_dir / config_name``.
     mask_file : Path or None, optional
-        Byte mask file to ignore low correlation/bad data (0=invalid, 1=good).
+        Byte mask file (0=invalid, 1=good). Recorded in the run configuration
+        but not applied in this release (the workflow logs a warning).
     ref_tropo_files : list[Path] or None, optional
         TROPO files for reference date.
     sec_tropo_files : list[Path] or None, optional
         TROPO files for secondary date.
     iono_files : list[Path] or None, optional
-        Ionospheric correction files.
+        Ionospheric correction files. Not supported in this release: raises.
     tiles_files : list[Path] or None, optional
-        Calibration tile bounds files (e.g., S1 burst bounds).
+        Calibration tile bounds files (e.g., S1 burst bounds). Not supported
+        in this release: raises.
     algorithm_overrides_json : Path or None, optional
         Frame-specific algorithm parameter overrides.
     defo_area_db_json : Path or None, optional
         GeoJSON with deforming areas to exclude from calibration.
     event_db_json : Path or None, optional
         GeoJSON with earthquake/volcanic activity events.
+    fit_mask_file : Path or None, optional
+        Stable-pixel fit mask (uint8 GeoTIFF, 1 = may be fit), written to the
+        static ancillary group. Default is None.
     n_workers : int, optional
         Number of parallel workers. Default is 4.
     threads_per_worker : int, optional
@@ -99,7 +110,7 @@ def create_config(
     product_version : str, optional
         Output product version. Default is "1.0".
     output_format : str, optional
-        Output file format. Default is "netcdf".
+        Output file format. Only "netcdf" is supported; anything else raises.
     compression : bool, optional
         Whether to compress output. Default is True.
     keep_relative : bool, optional
@@ -157,6 +168,7 @@ def create_config(
         "algorithm_overrides_json": algorithm_overrides_json,
         "defo_area_db_json": defo_area_db_json,
         "event_db_json": event_db_json,
+        "fit_mask_file": fit_mask_file,
     }
     for name, path in optional_files.items():  # type: ignore[assignment]
         if path is None:
@@ -192,7 +204,8 @@ def create_config(
     work_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    config_path = work_dir / config_name
+    config_path = config_file if config_file is not None else work_dir / config_name
+    config_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Resolve to absolute paths unless keeping relative
     if not keep_relative:
@@ -213,6 +226,8 @@ def create_config(
             defo_area_db_json = defo_area_db_json.resolve()
         if event_db_json is not None:
             event_db_json = event_db_json.resolve()
+        if fit_mask_file is not None:
+            fit_mask_file = fit_mask_file.resolve()
 
         # Resolve file lists
         if ref_tropo_files is not None:
@@ -247,11 +262,12 @@ def create_config(
 
     # Only create static ancillary group if any files are provided
     static_ancillary_group = None
-    if any([algorithm_overrides_json, defo_area_db_json, event_db_json]):
+    if any([algorithm_overrides_json, defo_area_db_json, event_db_json, fit_mask_file]):
         static_ancillary_group = StaticAncillaryFileGroup(
             algorithm_parameters_overrides_json=algorithm_overrides_json,
             defo_area_db_json=defo_area_db_json,
             event_db_json=event_db_json,
+            fit_mask_file=fit_mask_file,
         )
 
     product_path_group = ProductPathGroup(
@@ -291,9 +307,12 @@ def create_config(
 @click.option(
     "--config-file",
     "-c",
-    type=click.Path(path_type=Path),
-    default=Path.cwd() / DEFAULT_CONFIG_NAME,
-    help="Output configuration file path.",
+    type=click.Path(path_type=Path, dir_okay=False),
+    default=None,
+    help=(
+        "Output configuration file path, used as given (directories included)."
+        f"  [default: <work-dir>/{DEFAULT_CONFIG_NAME}]"
+    ),
 )
 @click.option(
     "--disp-file",
@@ -372,7 +391,9 @@ def create_config(
 @click.option(
     "--mask-file",
     type=click.Path(exists=True, path_type=Path),
-    help="Byte mask file (0=invalid, 1=good).",
+    help=(
+        "Byte mask file (0=invalid, 1=good). Recorded, but not applied in this release."
+    ),
 )
 @click.option(
     "--ref-tropo-files",
@@ -385,18 +406,6 @@ def create_config(
     type=click.Path(exists=True, path_type=Path),
     multiple=True,
     help="TROPO files for secondary date (can specify multiple times).",
-)
-@click.option(
-    "--iono-files",
-    type=click.Path(exists=True, path_type=Path),
-    multiple=True,
-    help="Ionospheric correction files (can specify multiple times).",
-)
-@click.option(
-    "--tiles-files",
-    type=click.Path(exists=True, path_type=Path),
-    multiple=True,
-    help="Calibration tile bounds files (can specify multiple times).",
 )
 @click.option(
     "--algorithm-overrides",
@@ -412,6 +421,11 @@ def create_config(
     "--event-db",
     type=click.Path(exists=True, path_type=Path),
     help="Events database (GeoJSON).",
+)
+@click.option(
+    "--fit-mask-file",
+    type=click.Path(exists=True, path_type=Path),
+    help="Stable-pixel fit mask (uint8 GeoTIFF, 1 = may be fit; loclin only).",
 )
 @click.option(
     "--n-workers",
@@ -441,9 +455,9 @@ def create_config(
 )
 @click.option(
     "--output-format",
-    type=click.Choice(["netcdf", "hdf5"]),
+    type=click.Choice(["netcdf"]),
     default="netcdf",
-    help="Output file format.",
+    help="Output file format (only netcdf is supported).",
 )
 @click.option(
     "--compression/--no-compression",
@@ -456,7 +470,7 @@ def create_config(
     help="Keep paths relative instead of absolute.",
 )
 def config_cli(
-    config_file: Path,
+    config_file: Path | None,
     disp_file: Path,
     frame_id: int,
     unr_grid_latlon: Path,
@@ -471,11 +485,10 @@ def config_cli(
     mask_file: Path | None,
     ref_tropo_files: tuple[Path, ...],
     sec_tropo_files: tuple[Path, ...],
-    iono_files: tuple[Path, ...],
-    tiles_files: tuple[Path, ...],
     algorithm_overrides: Path | None,
     defo_area_db: Path | None,
     event_db: Path | None,
+    fit_mask_file: Path | None,
     n_workers: int,
     threads_per_worker: int,
     block_shape: tuple[int, int],
@@ -524,15 +537,13 @@ def config_cli(
             --ref-tropo-files data/tropo_ref_1.h5 \
             --ref-tropo-files data/tropo_ref_2.h5 \
             --sec-tropo-files data/tropo_sec.h5 \
-            --mask-file data/water_mask.tif
+            --config-file configs/runconfig.yaml
 
     """
     try:
         # Convert tuples to lists (or None if empty)
         ref_tropo_list = list(ref_tropo_files) if ref_tropo_files else None
         sec_tropo_list = list(sec_tropo_files) if sec_tropo_files else None
-        iono_list = list(iono_files) if iono_files else None
-        tiles_list = list(tiles_files) if tiles_files else None
 
         config_path = create_config(
             disp_file=disp_file,
@@ -546,15 +557,14 @@ def config_cli(
             dem_file=dem_file,
             output_dir=output_dir,
             work_dir=work_dir,
-            config_name=config_file.name,
+            config_file=config_file,
             mask_file=mask_file,
             ref_tropo_files=ref_tropo_list,
             sec_tropo_files=sec_tropo_list,
-            iono_files=iono_list,
-            tiles_files=tiles_list,
             algorithm_overrides_json=algorithm_overrides,
             defo_area_db_json=defo_area_db,
             event_db_json=event_db,
+            fit_mask_file=fit_mask_file,
             n_workers=n_workers,
             threads_per_worker=threads_per_worker,
             block_shape=block_shape,

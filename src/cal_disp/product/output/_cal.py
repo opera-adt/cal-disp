@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -16,12 +16,19 @@ from ._auxiliary import build_auxiliary_dataset
 from ._identification import build_identification_dataset
 from ._main import build_main_dataset
 from ._metadata import build_metadata_dataset
+from ._plate_motion import build_plate_motion_dataset
 from ._utils import (
+    build_encoding,
     build_filename,
     compute_transform_from_coords,
     get_crs,
     get_transform,
 )
+
+
+def _utcnow() -> datetime:
+    """Naive UTC now (drop-in for the deprecated ``datetime.utcnow``)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 @dataclass
@@ -72,7 +79,7 @@ class CalProduct:
         Path to the calibration product NetCDF file.
     frame_id : int
         OPERA frame identifier.
-    primary_date : datetime
+    reference_date : datetime
         Earlier acquisition date (reference).
     secondary_date : datetime
         Later acquisition date.
@@ -86,6 +93,9 @@ class CalProduct:
         Date when product was generated.
     mode : str
         Acquisition mode (e.g., "IW" for S1, "LSAR" for NI).
+    compression : bool
+        Write raster layers gzip-compressed (with the shuffle filter). Rasters
+        are chunked (256, 256) either way.
 
     Examples
     --------
@@ -115,6 +125,7 @@ class CalProduct:
     version: str
     production_date: datetime
     mode: str = "IW"
+    compression: bool = True
 
     # Filename pattern supporting both S1 and NI sensors
     _PATTERN = re.compile(
@@ -230,6 +241,7 @@ class CalProduct:
         spatial_ref: xr.DataArray | None = None,
         global_metadata: dict[str, str] | None = None,
         version: str = "1.0",
+        compression: bool = True,
     ) -> CalProduct:
         """Create calibration product with main group only.
 
@@ -251,6 +263,9 @@ class CalProduct:
             Additional metadata. Default is None.
         version : str, optional
             Product version. Default is "1.0".
+        compression : bool, optional
+            Write the raster layers gzip-compressed (level 4, shuffle) in
+            (256, 256) chunks, as the DISP-S1 input. Default is True.
 
         Returns
         -------
@@ -287,7 +302,7 @@ class CalProduct:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate filename
-        production_date = datetime.utcnow()
+        production_date = _utcnow()
         filename = build_filename(
             disp_product,
             sensor,
@@ -303,8 +318,14 @@ class CalProduct:
             spatial_ref=spatial_ref,
             sensor=sensor,
             metadata=global_metadata,
+            reference_date=disp_product.reference_date,
+            secondary_date=disp_product.secondary_date,
         )
-        ds_main.to_netcdf(output_file, engine="h5netcdf")
+        ds_main.to_netcdf(
+            output_file,
+            engine="h5netcdf",
+            encoding=build_encoding(ds_main, compression=compression),
+        )
 
         return cls(
             path=output_file,
@@ -316,6 +337,7 @@ class CalProduct:
             version=version,
             production_date=production_date,
             mode=disp_product.mode,
+            compression=compression,
         )
 
     def add_identification(
@@ -455,7 +477,7 @@ class CalProduct:
 
         # Default processing start time to now if not provided
         if processing_start_datetime is None:
-            processing_start_datetime = datetime.utcnow()
+            processing_start_datetime = _utcnow()
 
         ds_id = build_identification_dataset(
             frame_id=self.frame_id,
@@ -494,7 +516,13 @@ class CalProduct:
             ceos_analysis_ready_data_document_identifier=ceos_analysis_ready_data_document_identifier,
             ceos_analysis_ready_data_product_type=ceos_analysis_ready_data_product_type,
         )
-        ds_id.to_netcdf(self.path, mode="a", group="identification", engine="h5netcdf")
+        ds_id.to_netcdf(
+            self.path,
+            mode="a",
+            group="identification",
+            engine="h5netcdf",
+            encoding=build_encoding(ds_id, compression=self.compression),
+        )
 
     def add_metadata(
         self,
@@ -513,6 +541,10 @@ class CalProduct:
         product_landing_page_doi: str | None = None,
         product_specification_document_id: str | None = None,
         pge_runconfig: str | None = None,
+        gnss_provenance_json: str | None = None,
+        algorithm_schema_version: int | None = None,
+        frame_parameters_version: str | None = None,
+        components_applied_json: str | None = None,
     ) -> None:
         """Add metadata group to existing product.
 
@@ -548,6 +580,14 @@ class CalProduct:
             Product spec document ID.
         pge_runconfig : str or None, optional
             PGE runconfig YAML content.
+        gnss_provenance_json : str or None, optional
+            GNSS provenance record (JSON), written as ``gnss_provenance`` when given.
+        algorithm_schema_version : int or None, optional
+            Venti algorithm-parameter schema version (v0.5 route only).
+        frame_parameters_version : str or None, optional
+            Top-level version of the runconfig's frame table, e.g. ``0.7-draft``.
+        components_applied_json : str or None, optional
+            JSON of which ``cal_*`` components are summed into ``calibration``.
 
         Raises
         ------
@@ -584,14 +624,26 @@ class CalProduct:
             product_landing_page_doi=product_landing_page_doi,
             product_specification_document_id=product_specification_document_id,
             pge_runconfig=pge_runconfig,
+            gnss_provenance_json=gnss_provenance_json,
+            algorithm_schema_version=algorithm_schema_version,
+            frame_parameters_version=frame_parameters_version,
+            components_applied_json=components_applied_json,
         )
-        ds_meta.to_netcdf(self.path, mode="a", group="metadata", engine="h5netcdf")
+        ds_meta.to_netcdf(
+            self.path,
+            mode="a",
+            group="metadata",
+            engine="h5netcdf",
+            encoding=build_encoding(ds_meta, compression=self.compression),
+        )
 
     def add_auxiliary(
         self,
         model_3d: dict[str, xr.DataArray] | None = None,
         model_3d_std: dict[str, xr.DataArray] | None = None,
         spatial_ref: xr.DataArray | None = None,
+        pair_span_years: float | None = None,
+        gnss_sampled: bool = True,
     ) -> None:
         """Add auxiliary group with 3D displacement model to existing product.
 
@@ -604,6 +656,10 @@ class CalProduct:
             3D displacement uncertainties.
         spatial_ref : xr.DataArray or None, optional
             Spatial reference.
+        pair_span_years : float or None, optional
+            Pair span (decimal years), recorded in the group attributes.
+        gnss_sampled : bool, optional
+            False when the components are a zero placeholder.
 
         Raises
         ------
@@ -633,8 +689,65 @@ class CalProduct:
             model_3d=model_3d,
             model_3d_std=model_3d_std,
             spatial_ref=spatial_ref,
+            pair_span_years=pair_span_years,
+            gnss_sampled=gnss_sampled,
         )
-        ds_aux.to_netcdf(self.path, mode="a", group="auxiliary", engine="h5netcdf")
+        ds_aux.to_netcdf(
+            self.path,
+            mode="a",
+            group="auxiliary",
+            engine="h5netcdf",
+            encoding=build_encoding(ds_aux, compression=self.compression),
+        )
+
+    def add_plate_motion(
+        self,
+        plate_motion: xr.DataArray,
+        plate: str,
+        pair_span_years: float,
+        spatial_ref: xr.DataArray | None = None,
+        model: str = "ITRF2020-PMM",
+    ) -> None:
+        """Add the ``plate_motion`` group: rigid plate motion over the pair in LOS.
+
+        ``DISP - calibration - plate_motion`` is the plate-fixed displacement
+        (e.g. North America fixed); ``calibration`` itself stays in IGS20.
+
+        Parameters
+        ----------
+        plate_motion : xr.DataArray
+            LOS displacement (m) on the DISP grid, dimensions (time, y, x).
+        plate : str
+            Plate of the frame (frame-parameter table), e.g. "NA".
+        pair_span_years : float
+            Pair span (decimal years) the velocity was scaled by.
+        spatial_ref : xr.DataArray or None, optional
+            Spatial reference of the DISP grid.
+        model : str, optional
+            Plate-motion model. Default "ITRF2020-PMM".
+
+        Raises
+        ------
+        FileNotFoundError
+            If product file does not exist.
+
+        """
+        if not self.path.exists():
+            raise FileNotFoundError(f"Product file not found: {self.path}")
+        ds = build_plate_motion_dataset(
+            plate_motion,
+            plate=plate,
+            model=model,
+            pair_span_years=pair_span_years,
+            spatial_ref=spatial_ref,
+        )
+        ds.to_netcdf(
+            self.path,
+            mode="a",
+            group="plate_motion",
+            engine="h5netcdf",
+            encoding=build_encoding(ds, compression=self.compression),
+        )
 
     def open_dataset(self, group: str | None = None) -> xr.Dataset:
         """Open calibration dataset.

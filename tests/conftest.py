@@ -240,24 +240,30 @@ def sample_static_layers(tmp_path: Path) -> tuple[Path, Path]:
 
 @pytest.fixture
 def sample_static_dem(tmp_path: Path) -> Path:
-    """Create mock DEM static layer GeoTIFF."""
+    """Create mock DEM static layer GeoTIFF.
+
+    On the grid of sample_disp_product and sample_static_los (200×200,
+    UTM 11N): the static layers of a frame share the DISP grid, and the
+    workflow checks it (cal_disp.prep.consistency).
+    """
     try:
         import rasterio
         from rasterio.crs import CRS
         from rasterio.transform import from_bounds
 
-        dem_data = np.random.uniform(0, 2000, (100, 100)).astype(np.float32)
+        ny, nx = 200, 200
+        dem_data = np.random.uniform(0, 2000, (ny, nx)).astype(np.float32)
         dem_file = tmp_path / "OPERA_L3_DISP-S1-STATIC_F08882_20140403_S1A_v1.0_dem.tif"
 
-        transform = from_bounds(-118, 34, -117, 35, 100, 100)
-        crs = CRS.from_epsg(4326)
+        transform = from_bounds(405000, 3758000, 425000, 3778000, nx, ny)
+        crs = CRS.from_epsg(32611)
 
         with rasterio.open(
             dem_file,
             "w",
             driver="GTiff",
-            height=100,
-            width=100,
+            height=ny,
+            width=nx,
             count=1,
             dtype=np.float32,
             crs=crs,
@@ -688,23 +694,3 @@ def reset_random_state() -> Iterator[None]:
     """Reset numpy random state before each test."""
     np.random.seed(42)
     yield
-
-
-def pytest_configure(config):
-    """Add custom markers."""
-    config.addinivalue_line(
-        "markers",
-        "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    )
-    config.addinivalue_line(
-        "markers",
-        "integration: integration tests requiring external data or services",
-    )
-    config.addinivalue_line(
-        "markers",
-        "requires_earthdata: tests requiring Earthdata credentials",
-    )
-    config.addinivalue_line(
-        "markers",
-        "requires_network: tests requiring network access",
-    )

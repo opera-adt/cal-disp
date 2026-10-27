@@ -8,6 +8,8 @@ import asf_search as asf
 import geopandas as gpd
 import pandas as pd
 
+from ._errors import DownloadError
+
 # Constants
 TROPO_COLLECTION = "C3717139408-ASF"
 
@@ -113,16 +115,34 @@ def download_tropo(
         If True, get 2 scenes per time (for interpolation).
         If False, get single nearest scene.
 
+    Raises
+    ------
+    DownloadError
+        If no TROPO scene is found for one of the sensing times, so the
+        stage never silently "completes" with nothing downloaded.
+
     """
     out = Path(output_dir)
     out.mkdir(exist_ok=True, parents=True)
 
     n_scenes = 2 if interp else 1
     all_scenes = []
+    missing: list[str] = []
 
     for t in disp_times:
         scenes = find_nearest_scenes(t, num_scenes=n_scenes)
+        if len(scenes) == 0:
+            missing.append(str(t))
+            continue
         all_scenes.extend(scenes)
+
+    if missing:
+        msg = (
+            f"No TROPO scenes found in collection {TROPO_COLLECTION} within"
+            f" +/-12 h of {len(missing)} of {len(disp_times)} sensing time(s):"
+            f" {', '.join(missing)}"
+        )
+        raise DownloadError(msg)
 
     combined = asf.ASFSearchResults(all_scenes)
     logger.info(f"Downloading {len(combined)} scenes to {out}")

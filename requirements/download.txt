@@ -1,4 +1,4 @@
-opera-utils
+opera-utils[disp]
 asf_search
 rich
 zarr

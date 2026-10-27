@@ -1,6 +1,9 @@
 # CAL-DISP Algorithm Parameters
 # Configuration for the calibration algorithm
-# Schema version: 0.3
+# Schema version: 0.5 (the v0.5 algorithm, plan T49; the same values as
+# algorithm_parameters_v05.yaml). Gamma 0.3: algorithm_parameters_gamma.yaml.
+# Per-frame settings come from the Venti frame table
+# (runconfig static_ancillary_group.algorithm_parameters_overrides_json).
 
 calibration_options:
 
@@ -18,16 +21,23 @@ calibration_options:
   #   Options: ['IGS20', 'IGS14'].
   reference_frame: IGS20
 
-  # Apply watershed-based unwrap-error correction to the displacement field
-  # before fitting the calibration surface.
+  # Apply Venti's region-offset unwrap-error correction to the displacement
+  # field before fitting the calibration surface.  Off by default: Venti
+  # segments the valid-data mask into connected components (not regions
+  # bounded by phase discontinuities) and shifts every component whose
+  # median differs from the first one by more than half an unwrapping cycle
+  # (lambda/2 = 27.7 mm for Sentinel-1), which quantises the long-wavelength
+  # signal the calibration fits into lambda/2 steps.  Enable only with a
+  # segmentation validated on products with known unwrapping errors.
   #   Type: boolean.
-  unwrap_error_correction: true
+  unwrap_error_correction: false
 
   # Apply the tropospheric correction when the runconfig lists tropo files
   # (removed before the fit and added back to the calibration surface).
   # false ignores the tropo files.
   #   Type: boolean.
-  apply_tropo_correction: true
+  # v0.5: the tropo mode is set per frame (tropo.mode in the frame table).
+  apply_tropo_correction: false
 
   # Remove the product's /corrections/solid_earth_tide before the fit (UNR
   # GNSS already has it removed) and add it back to the calibration surface.
@@ -36,10 +46,11 @@ calibration_options:
   apply_solid_earth_tide_correction: true
 
   # Side length of the moving window used for polynomial plane fitting, in
-  # metres.  A 30 km window at 30 m posting gives a 1000-pixel window.
+  # metres (windowed_plane only; the v0.5 loclin surface uses
+  # surface.cutoff_wavelength_meters).
   #   Type: float.
   #   Units: metres.
-  window_size_meters: 30000.0
+  window_size_meters: 600000.0
 
   # Input DISP pixel spacing in metres.  30 m for DISP-S1.
   #   Type: float.
@@ -104,7 +115,7 @@ calibration_options:
   # 0     → disables smoothing entirely.
   # Ignored when calibration_surface_smoothing_method = 'savitzky_golay'.
   #   Type: float | null.
-  calibration_surface_smoothing_sigma:
+  calibration_surface_smoothing_sigma: 0.0
 
   # Savitzky-Golay filter parameters.
   # Active when calibration_surface_smoothing_method = 'savitzky_golay'.
@@ -116,3 +127,34 @@ calibration_options:
     # Polynomial order for fitting (must be < window_length).
     #   Type: integer.
     polyorder: 3
+
+  # ---- v0.5 (Venti algorithm_parameters schema v2) ----
+
+  # Calibration surface: local-linear kernel with a 50 km half-response cutoff
+  # and a robust two-pass tie (R-S1 to R-S4). 'windowed_plane' is gamma.
+  # Per frame: regions (islands), fit_mask (packaged stable-pixel masks).
+  surface:
+    method: loclin
+    cutoff_wavelength_meters: 50000.0
+    fill_gaps: true
+    two_pass: true
+
+  # Fit weights: temporal coherence to the power 8, times robust weights (TS-B1).
+  weights:
+    coherence_power: 8.0
+    robust: true
+
+  # calibration_std (sigma_CAL): k_grid inflates the GNSS grid sigma (per frame
+  # from TS-G1 in the frame table); extrapolate_sigma gives sigma wherever the
+  # calibration has a value (owner 2026-10-14).
+  uncertainty:
+    k_grid: 3.9
+    extrapolate_sigma: true
+
+  # GNSS grid: nodes within 50 km outside the frame constrain the edges (R-G2);
+  # nodes inside deforming areas are excluded and re-interpolated
+  # (remove-restore, with the runconfig's defo_area_db_json / event_db_json).
+  gnss:
+    buffer_meters: 50000.0
+    exclude_defo_nodes: true
+    reinterpolate_excluded: true

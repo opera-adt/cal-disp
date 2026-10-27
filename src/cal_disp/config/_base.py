@@ -131,8 +131,10 @@ class DynamicAncillaryFileGroup(YamlModel):
         Alias: static_dem_file
     mask_file : Path or None, optional
         Optional byte mask file to ignore low correlation/bad data (e.g., water mask).
-        Convention: 0 = invalid/no data, 1 = good data. Dtype must be uint8.
-        Default is None.
+        Convention: 0 = invalid/no data, 1 = good data. Dtype must be uint8 and
+        the raster must be on the DISP grid (same shape, pixel size and origin).
+        Combined with the product's recommended_mask and water_mask. Default
+        is None.
     reference_tropo_files : list[Path] or None, optional
         Paths to TROPO files for the reference (primary) date.
         If not provided, tropospheric correction for reference is skipped.
@@ -142,12 +144,11 @@ class DynamicAncillaryFileGroup(YamlModel):
         If not provided, tropospheric correction for secondary is skipped.
         Alias: sec_tropo_files. Default is None.
     iono_files : list[Path] or None, optional
-        Paths to ionospheric correction files.
-        If not provided, ionospheric correction is skipped.
-        Default is None.
+        Paths to ionospheric correction files. Not supported in this release:
+        a non-empty list raises. Default is None.
     tiles_files : list[Path] or None, optional
         Paths to calibration tile bounds files (e.g., S1 burst bounds) covering
-        the full frame. If not provided, per-tile calibration is skipped.
+        the full frame. Not supported in this release: a non-empty list raises.
         Default is None.
 
     """
@@ -207,8 +208,8 @@ class DynamicAncillaryFileGroup(YamlModel):
         default=None,
         alias="iono_files",
         description=(
-            "Path to the IONO files"
-            " If not provided, ionosphere correction for reference is skipped"
+            "Paths to the IONO files. Not supported in this release (no ionospheric"
+            " correction is applied): must be empty"
         ),
     )
 
@@ -216,7 +217,8 @@ class DynamicAncillaryFileGroup(YamlModel):
         default=None,
         description=(
             "Paths to the calibration tile bounds files (e.g. S1 burst bounds) covering"
-            " full frame. If none provided, calibration per tile is skipped"
+            " full frame. Not supported in this release (no per-tile calibration):"
+            " must be empty"
         ),
     )
 
@@ -231,6 +233,22 @@ class DynamicAncillaryFileGroup(YamlModel):
     def _validate_file_lists(cls, v):
         """Validate and process file lists or glob patterns."""
         return _read_file_list_or_glob(cls, v)
+
+    @model_validator(mode="after")
+    def _reject_unsupported_inputs(self) -> "DynamicAncillaryFileGroup":
+        """Fail for inputs the workflow would otherwise silently ignore."""
+        for name, what in (
+            ("iono_files", "ionospheric correction"),
+            ("tiles_files", "per-tile calibration"),
+        ):
+            files = getattr(self, name)
+            if files:
+                raise ValueError(
+                    f"{name} is not supported in this release ({what} is not"
+                    f" implemented); got {len(files)} file(s). Remove {name} from the"
+                    " run configuration."
+                )
+        return self
 
     def get_all_files(self) -> Dict[str, Path | list[Path]]:
         return self.get_all_file_paths(flatten_lists=True)
@@ -252,6 +270,8 @@ class StaticAncillaryFileGroup(YamlModel):
         GeoJSON file with deforming areas to exclude from calibration.
     event_database_json : Optional[Path]
         GeoJSON file with earthquake/volcanic activity events for each frame.
+    fit_mask_file : Optional[Path]
+        Stable-pixel fit mask of the frame (uint8 GeoTIFF, 1 = may be fit).
 
     """
 
@@ -278,6 +298,17 @@ class StaticAncillaryFileGroup(YamlModel):
         description=(
             "GeoJSON file containing list of events (earthquakes, volcanic activity)"
             " for each frame"
+        ),
+    )
+
+    fit_mask_file: OptionalPath = Field(
+        default=None,
+        description=(
+            "Stable-pixel fit mask of the frame (uint8 GeoTIFF, 1 = may be fit,"
+            " e.g. from venti-fit-mask). Pixels outside it are left out of the"
+            " loclin surface fit only; the surface is still evaluated there. For"
+            " masks not packaged in Venti; cannot be combined with"
+            " surface.fit_mask"
         ),
     )
 

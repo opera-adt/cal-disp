@@ -54,21 +54,25 @@ class TestCalibrationOptions:
     """Tests for CalibrationOptions configuration."""
 
     def test_defaults(self):
-        """Should have expected default values."""
+        """The v0.5 defaults (plan T49); gamma: algorithm_parameters_gamma.yaml."""
         options = CalibrationOptions()
 
         assert options.grid_type == "constant"
         assert options.reference_frame == "IGS20"
-        assert options.unwrap_error_correction is True
-        assert options.apply_tropo_correction is True
+        assert options.unwrap_error_correction is False
+        assert options.apply_tropo_correction is False
         assert options.apply_solid_earth_tide_correction is True
-        assert options.window_size_meters == pytest.approx(30000.0)
+        assert options.window_size_meters == pytest.approx(600000.0)
         assert options.posting_meters == pytest.approx(30.0)
         assert options.downsample_factor == 6
         assert options.downsample_method == "mean"
         assert options.downsample_weighted is False
         assert options.calibration_surface_smoothing_method == "gaussian"
-        assert options.calibration_surface_smoothing_sigma is None
+        assert options.calibration_surface_smoothing_sigma == 0.0
+        assert options.surface.method == "loclin"
+        assert options.surface.cutoff_wavelength_meters == pytest.approx(50000.0)
+        assert options.uncertainty.extrapolate_sigma is True
+        assert options.gnss.buffer_meters == pytest.approx(50000.0)
 
     def test_window_size_pixels_computed(self):
         """Should compute window_size_pixels from metres and posting."""
@@ -186,7 +190,7 @@ class TestAlgorithmParameters:
         params = AlgorithmParameters.create_default()
 
         assert isinstance(params, AlgorithmParameters)
-        assert params.calibration_options.unwrap_error_correction is True
+        assert params.calibration_options.unwrap_error_correction is False
 
     def test_custom_calibration_options(self):
         """Should accept custom nested configuration."""

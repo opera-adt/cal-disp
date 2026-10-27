@@ -1,0 +1,24 @@
+# The 0.3 (gamma) golden's algorithm parameters, frozen when T49 moved the
+# golden to v0.5 (scripts/build_golden_output.sh before 2026-10-15).
+calibration_options:
+  grid_type: constant
+  reference_frame: IGS20
+  unwrap_error_correction: false
+  apply_tropo_correction: false
+  apply_solid_earth_tide_correction: true
+  window_size_meters: 600000.0
+  posting_meters: 30.0
+  downsample_factor: 6
+  downsample_method: mean
+  downsample_weighted: false
+  event_mask_buffer_pixels: 0
+  residual_outlier_mad_threshold:
+  residual_region_mad_threshold:
+  residual_region_min_pixels: 20
+  mask_fit_residual_outliers: true
+  weight_fit_by_gnss_uncertainty: false
+  calibration_surface_smoothing_method: gaussian
+  calibration_surface_smoothing_sigma: 0.0
+  savitzky_golay:
+    window_length: 51
+    polyorder: 3

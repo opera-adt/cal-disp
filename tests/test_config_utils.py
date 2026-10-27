@@ -295,6 +295,36 @@ class TestParseAlgorithmOverrides:
 
         assert result == {"downsample_factor": 5}
 
+    def test_finds_venti_zero_padded_frame_keys(self, tmp_path: Path):
+        """Venti's materialized frame table keys frames as "08882"."""
+        from venti.frames import load_frame_table
+
+        overrides_file = load_frame_table().write(
+            tmp_path / "frame_parameters.json", materialize=True
+        )
+        result = _parse_algorithm_overrides(overrides_file, 8882)
+        assert result["calibration_options"]["surface"]["regions"] == "separate"
+        assert _parse_algorithm_overrides(overrides_file, "08882") == result
+        assert _parse_algorithm_overrides(overrides_file, 99) == {}
+
+    def test_overrides_version_is_the_table_version(self, tmp_path: Path):
+        """T27.4: the frame table's top-level version goes into the metadata."""
+        from cal_disp.config._utils import _overrides_version
+
+        f = tmp_path / "t.json"
+        f.write_text(json.dumps({"version": "0.6-draft", "data": {}}))
+        assert _overrides_version(f) == "0.6-draft"
+        f.write_text(json.dumps({"8882": {}}))
+        assert _overrides_version(f) is None
+
+    def test_rejects_a_frame_under_two_keys(self, tmp_path: Path):
+        overrides_file = tmp_path / "overrides.json"
+        overrides_file.write_text(
+            json.dumps({"8882": {"downsample_factor": 5}, "08882": {}})
+        )
+        with pytest.raises(ValueError, match="both keys"):
+            _parse_algorithm_overrides(overrides_file, 8882)
+
     def test_returns_empty_for_missing_frame(self, tmp_path: Path):
         """Should return empty dict if frame not in overrides."""
         overrides_file = tmp_path / "overrides.json"
