@@ -30,6 +30,7 @@ wheels/
 MANIFEST
 
 # Virtual environments
+.pixi/
 venv/
 ENV/
 env/
@@ -63,6 +64,8 @@ site/
 # Data directories (exclude large data files)
 data/
 delivery_data_cal_disp/
+golden_data_disp_cal/
+test_golden/
 *.nc
 *.tif
 *.tiff
@@ -91,3 +94,4 @@ temp/
 !README.md
 !LICENSE.txt
 !environment.yml
+!docs/notebooks/

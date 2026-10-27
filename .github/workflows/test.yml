@@ -22,4 +22,6 @@ jobs:
 
       - name: Run tests
         shell: micromamba-shell {0}
-        run: pytest -v --maxfail=1 tests
+        # From the repository root: the configuration is [tool.pytest.ini_options]
+        # in pyproject.toml (testpaths, markers, filterwarnings=error, random seed)
+        run: pytest -v --maxfail=1

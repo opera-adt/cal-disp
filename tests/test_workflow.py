@@ -189,6 +189,111 @@ def test_run_calibration_venti_core_inputs(
     assert applied == ("solid_earth_tide" if apply_set else "none")
 
 
+def test_unwrap_error_correction_is_off_by_default():
+    """Venti's mask-island unwrap correction is unvalidated: default off."""
+    assert CalibrationOptions().unwrap_error_correction is False
+    assert AlgorithmParameters().calibration_options.unwrap_error_correction is False
+    assert CalibrationOptions().to_venti().unwrap_error_correction is False
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_run_calibration_unwrap_cycle_is_half_wavelength(
+    tmp_path: Path,
+    sample_disp_product: Path,
+    sample_static_los: Path,
+    sample_unr_data: tuple[Path, Path],
+    captured_core,
+    enabled: bool,
+):
+    """Venti rounds region offsets to multiples of its `wavelength_m`; one
+    unwrapping cycle is λ/2 of LOS displacement (two-way path), not λ."""
+    lookup_file, tenv8_dir = sample_unr_data
+    run_calibration(
+        disp_file=sample_disp_product,
+        unr_grid_latlon_file=lookup_file,
+        unr_timeseries_dir=tenv8_dir,
+        output_dir=tmp_path / "out",
+        los_file=sample_static_los,
+        algorithm_parameters=AlgorithmParameters(
+            calibration_options=CalibrationOptions(
+                unwrap_error_correction=enabled,
+                apply_solid_earth_tide_correction=False,
+            )
+        ),
+    )
+
+    (call,) = captured_core
+    assert call["options"].unwrap_error_correction is enabled
+    # The fixture product's /identification/radar_wavelength is 0.05546 m
+    assert call["wavelength_m"] == pytest.approx(0.05546 / 2, rel=1e-6)
+    assert call["wavelength_m"] < 0.03  # never the full 55 mm wavelength
+
+
+def _displacement_with_nodata(tmp_path: Path) -> tuple[Path, np.ndarray]:
+    """A float64 displacement file with NaN nodata, and its float64 values."""
+    rng = np.random.default_rng(7)
+    values = rng.normal(0.0, 0.05, (37, 23))  # not representable in float32
+    values[3:9, 5:11] = np.nan
+    values[20, :] = np.nan
+    path = tmp_path / "displacement.nc"
+    xr.Dataset({"displacement": (["y", "x"], values)}).to_netcdf(
+        path, engine="h5netcdf"
+    )
+    return path, values
+
+
+@pytest.mark.parametrize("block_rows", [1, 7, 512])
+def test_load_displacement_matches_astype_float32(tmp_path: Path, block_rows: int):
+    from cal_disp.workflow import _load_displacement
+
+    path, values = _displacement_with_nodata(tmp_path)
+    with xr.open_dataset(path, engine="h5netcdf") as ds:
+        assert ds["displacement"].dtype == np.float64
+        loaded = _load_displacement(ds, block_rows=block_rows)
+        # Read in blocks: the float64 layer is not cached in the dataset
+        assert not ds["displacement"].variable._in_memory
+
+    assert loaded.dtype == np.float32
+    # Bit-identical to the previous `displacement.values.astype(np.float32)`
+    expected = values.astype(np.float32)
+    assert loaded.tobytes() == expected.tobytes()
+    # The nodata count from the float32 array equals the float64 one
+    assert np.count_nonzero(np.isnan(loaded)) == int(np.isnan(values).sum()) == 59
+
+
+def test_run_calibration_loads_displacement_once(
+    tmp_path: Path,
+    sample_disp_product: Path,
+    sample_static_los: Path,
+    sample_unr_data: tuple[Path, Path],
+    captured_core,
+):
+    """The block-wise float32 load hands Venti the same array and mask as
+    ``displacement.values.astype(np.float32)`` did."""
+    import h5py
+
+    with h5py.File(sample_disp_product, "a") as f:
+        f["displacement"][10:15, 40:60] = np.nan  # 100 nodata pixels
+    with xr.open_dataset(sample_disp_product) as disp:
+        values = disp["displacement"].values
+    assert values.dtype == np.float64
+
+    lookup_file, tenv8_dir = sample_unr_data
+    run_calibration(
+        disp_file=sample_disp_product,
+        unr_grid_latlon_file=lookup_file,
+        unr_timeseries_dir=tenv8_dir,
+        output_dir=tmp_path / "out",
+        los_file=sample_static_los,
+    )
+
+    (call,) = captured_core
+    assert call["disp"].dtype == np.float32
+    assert call["disp"].tobytes() == values.astype(np.float32).tobytes()
+    np.testing.assert_array_equal(call["mask"], ~np.isnan(values))
+    assert int((~call["mask"]).sum()) == 100
+
+
 def test_run_calibration_without_set_layer_warns(
     tmp_path: Path,
     sample_disp_product: Path,

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import rioxarray  # noqa: F401  (registers the .rio accessor)
+
+from cal_disp.prep.consistency import check_tropo_coverage
 from cal_disp.product import (
     DispProduct,
     StaticLayer,
@@ -80,6 +83,7 @@ def prepare_troposphere_correction(
     """
     # LOAD DISP product
     disp_product = DispProduct.from_path(disp_file)
+    check_tropo_coverage(disp_product, [*reference_tropo_files, *secondary_tropo_files])
 
     # Load DEM and add CRS
     dem = StaticLayer.from_path(dem_file).to_dataset()

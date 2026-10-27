@@ -18,10 +18,16 @@ calibration_options:
   #   Options: ['IGS20', 'IGS14'].
   reference_frame: IGS20
 
-  # Apply watershed-based unwrap-error correction to the displacement field
-  # before fitting the calibration surface.
+  # Apply Venti's region-offset unwrap-error correction to the displacement
+  # field before fitting the calibration surface.  Off by default: Venti
+  # segments the valid-data mask into connected components (not regions
+  # bounded by phase discontinuities) and shifts every component whose
+  # median differs from the first one by more than half an unwrapping cycle
+  # (lambda/2 = 27.7 mm for Sentinel-1), which quantises the long-wavelength
+  # signal the calibration fits into lambda/2 steps.  Enable only with a
+  # segmentation validated on products with known unwrapping errors.
   #   Type: boolean.
-  unwrap_error_correction: true
+  unwrap_error_correction: false
 
   # Apply the tropospheric correction when the runconfig lists tropo files
   # (removed before the fit and added back to the calibration surface).

@@ -27,9 +27,11 @@ def run_main(config_file: str | Path, debug: bool = False) -> Path:
     from cal_disp.config.pge_runconfig import RunConfig
     from cal_disp.main import run
 
-    pge_runconfig = RunConfig.from_yaml_file(Path(config_file))
+    config_file = Path(config_file)
+    pge_runconfig = RunConfig.from_yaml_file(config_file)
     runconfig = pge_runconfig.to_workflow()
-    return run(runconfig=runconfig, debug=debug)
+    # The RunConfig YAML as run, embedded in the product's /metadata
+    return run(runconfig=runconfig, debug=debug, pge_runconfig=config_file.read_text())
 
 
 @click.command("run")

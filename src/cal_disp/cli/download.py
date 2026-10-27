@@ -217,17 +217,21 @@ def tropo(
 
     """
     from cal_disp.download import download_tropo
+    from cal_disp.download._errors import DownloadError
     from cal_disp.download.utils import extract_sensing_times_from_file
 
     sensing_times = extract_sensing_times_from_file(input_file)
     output_dir.mkdir(exist_ok=True, parents=True)
 
-    download_tropo(
-        disp_times=sensing_times,
-        output_dir=output_dir,
-        num_workers=num_workers,
-        interp=interp,
-    )
+    try:
+        download_tropo(
+            disp_times=sensing_times,
+            output_dir=output_dir,
+            num_workers=num_workers,
+            interp=interp,
+        )
+    except DownloadError as e:
+        raise click.ClickException(str(e)) from e
     click.echo(f"Download complete: {output_dir}")
 
 
@@ -274,11 +278,24 @@ def burst_bounds(
 
     # Parse filename: OPERA_L3_DISP-S1_IW_F{frame}_VV_{dates}...
     parts = input_file.stem.split("_")
-    sensor = parts[2].split("-")[1]  # DISP-S1 -> S1
-    frame_id = int(parts[4].lstrip("F"))  # F08882 -> 8882
+    try:
+        sensor = parts[2].split("-")[1]  # DISP-S1 -> S1
+    except IndexError:
+        raise click.ClickException(
+            f"Not an OPERA DISP product name: {input_file.name}"
+        ) from None
 
+    # Check the sensor before parsing the rest of the name, so a DISP-NI or
+    # otherwise unsupported product is reported as such, not as a parse error
     if sensor != "S1":
         raise click.ClickException(f"Only DISP-S1 products supported, got: {sensor}")
+
+    try:
+        frame_id = int(parts[4].lstrip("F"))  # F08882 -> 8882
+    except (IndexError, ValueError):
+        raise click.ClickException(
+            f"Cannot read the frame ID from the file name: {input_file.name}"
+        ) from None
 
     sensing_times = extract_sensing_times_from_file(input_file)
     output_dir.mkdir(exist_ok=True, parents=True)

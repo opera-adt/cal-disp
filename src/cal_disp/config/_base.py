@@ -142,13 +142,17 @@ class DynamicAncillaryFileGroup(YamlModel):
         If not provided, tropospheric correction for secondary is skipped.
         Alias: sec_tropo_files. Default is None.
     iono_files : list[Path] or None, optional
-        Paths to ionospheric correction files.
-        If not provided, ionospheric correction is skipped.
-        Default is None.
+        Paths to ionospheric correction files. Not supported in this release:
+        a non-empty list raises. Default is None.
     tiles_files : list[Path] or None, optional
         Paths to calibration tile bounds files (e.g., S1 burst bounds) covering
-        the full frame. If not provided, per-tile calibration is skipped.
+        the full frame. Not supported in this release: a non-empty list raises.
         Default is None.
+
+    Notes
+    -----
+    ``mask_file`` is accepted but not applied in this release; the workflow
+    logs a warning when it is set.
 
     """
 
@@ -207,8 +211,8 @@ class DynamicAncillaryFileGroup(YamlModel):
         default=None,
         alias="iono_files",
         description=(
-            "Path to the IONO files"
-            " If not provided, ionosphere correction for reference is skipped"
+            "Paths to the IONO files. Not supported in this release (no ionospheric"
+            " correction is applied): must be empty"
         ),
     )
 
@@ -216,7 +220,8 @@ class DynamicAncillaryFileGroup(YamlModel):
         default=None,
         description=(
             "Paths to the calibration tile bounds files (e.g. S1 burst bounds) covering"
-            " full frame. If none provided, calibration per tile is skipped"
+            " full frame. Not supported in this release (no per-tile calibration):"
+            " must be empty"
         ),
     )
 
@@ -231,6 +236,22 @@ class DynamicAncillaryFileGroup(YamlModel):
     def _validate_file_lists(cls, v):
         """Validate and process file lists or glob patterns."""
         return _read_file_list_or_glob(cls, v)
+
+    @model_validator(mode="after")
+    def _reject_unsupported_inputs(self) -> "DynamicAncillaryFileGroup":
+        """Fail for inputs the workflow would otherwise silently ignore."""
+        for name, what in (
+            ("iono_files", "ionospheric correction"),
+            ("tiles_files", "per-tile calibration"),
+        ):
+            files = getattr(self, name)
+            if files:
+                raise ValueError(
+                    f"{name} is not supported in this release ({what} is not"
+                    f" implemented); got {len(files)} file(s). Remove {name} from the"
+                    " run configuration."
+                )
+        return self
 
     def get_all_files(self) -> Dict[str, Path | list[Path]]:
         return self.get_all_file_paths(flatten_lists=True)

@@ -118,12 +118,16 @@ done
 
 # 2. Configs
 echo "[2/4] Writing configs..."
+# Gamma 0.3 configuration agreed with the DISP-CAL lead on 2026-10-06
+# (docs/decisions/0001-gamma-config.md): 600 km, tropo off, unwrap off. The
+# tropo files stay staged and listed in the runconfig (frozen interface);
+# apply_tropo_correction: false makes the workflow ignore them.
 cat > "${D}/configs/algorithm_parameters.yaml" <<'EOF'
 calibration_options:
   grid_type: constant
   reference_frame: IGS20
-  unwrap_error_correction: true
-  apply_tropo_correction: true
+  unwrap_error_correction: false
+  apply_tropo_correction: false
   apply_solid_earth_tide_correction: true
   window_size_meters: 600000.0
   posting_meters: 30.0
@@ -158,8 +162,7 @@ cal-disp config \
     -o  "${D}/output" \
     --work-dir "${D}/output/_work" \
     --keep-relative \
-    -c  runconfig.yaml > /dev/null
-mv "${D}/output/_work/runconfig.yaml" "${D}/configs/runconfig.yaml"
+    -c  "${D}/configs/runconfig.yaml" > /dev/null
 rm -rf "${D}/output/_work"
 
 # 3. Golden run

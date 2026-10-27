@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from collections.abc import Mapping
+from typing import Any, Literal, Optional
 
 from pydantic import Field, computed_field
 
-from ._yaml import YamlModel
+from ._yaml import YamlModel, _computed_fields_exclude
 
 
 class SavitzkyGolayOptions(YamlModel):
@@ -51,7 +52,12 @@ class CalibrationOptions(YamlModel):
     reference_frame : str
         GNSS reference frame, ``'IGS20'`` or ``'IGS14'``.
     unwrap_error_correction : bool
-        Apply watershed-based unwrap-error correction before fitting.
+        Apply Venti's region-offset unwrap-error correction before fitting.
+        Off by default: Venti segments the *valid mask* into connected
+        components (not phase discontinuities) and shifts every component
+        whose median differs from the first one by more than half a cycle
+        (λ/2 = 27.7 mm for Sentinel-1), which quantises genuine
+        long-wavelength signal into λ/2 steps before the plane fit.
     apply_tropo_correction : bool
         Apply the tropospheric correction when the runconfig lists tropo
         files; ``False`` ignores them.
@@ -114,10 +120,19 @@ class CalibrationOptions(YamlModel):
     )
 
     unwrap_error_correction: bool = Field(
-        default=True,
+        default=False,
         description=(
-            "Apply watershed-based unwrap-error correction to the displacement "
-            "field before fitting the calibration surface."
+            "Apply Venti's region-offset unwrap-error correction to the "
+            "displacement field before fitting the calibration surface. "
+            "Disabled by default: Venti segments the valid-data mask into "
+            "connected components (islands), not into regions bounded by phase "
+            "discontinuities, and shifts every island whose median differs from "
+            "the first island by more than half an unwrapping cycle (lambda/2 = "
+            "27.7 mm for Sentinel-1). On a real frame this quantises the "
+            "long-wavelength signal the calibration is meant to fit into "
+            "lambda/2 steps. Enable only once the segmentation is driven by "
+            "phase discontinuities (or connected components) and validated "
+            "against products with known unwrapping errors."
         ),
     )
 
@@ -324,3 +339,47 @@ class AlgorithmParameters(YamlModel):
     def create_default(cls) -> "AlgorithmParameters":
         """Create algorithm parameters with default values."""
         return cls()
+
+    def with_overrides(self, overrides: Mapping[str, Any]) -> "AlgorithmParameters":
+        """Return a validated copy with `overrides` applied.
+
+        Parameters
+        ----------
+        overrides : Mapping[str, Any]
+            Frame-specific values, e.g. one entry of the
+            ``algorithm_parameters_overrides_json`` file. Keys are either
+            option groups (``{"calibration_options": {"downsample_factor": 3}}``)
+            or, as a shorthand, options of ``calibration_options``
+            (``{"downsample_factor": 3}``). Nested options are merged.
+
+        Returns
+        -------
+        AlgorithmParameters
+            New instance; ``self`` is returned unchanged for empty overrides.
+
+        Raises
+        ------
+        pydantic.ValidationError
+            For an unknown option or an invalid value.
+
+        """
+        if not overrides:
+            return self
+
+        def _merge(base: dict[str, Any], new: Mapping[str, Any]) -> dict[str, Any]:
+            for key, value in new.items():
+                if isinstance(value, Mapping) and isinstance(base.get(key), dict):
+                    _merge(base[key], value)
+                else:
+                    base[key] = value
+            return base
+
+        # Without computed fields: they would be rejected as extra inputs
+        data = self.model_dump(exclude=_computed_fields_exclude(self))
+        groups = set(type(self).model_fields)
+        for key, value in overrides.items():
+            if key in groups:
+                _merge(data, {key: value})
+            else:
+                _merge(data["calibration_options"], {key: value})
+        return type(self).model_validate(data)
