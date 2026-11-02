@@ -3,6 +3,63 @@
 Product-affecting entries are marked **[product]**. Numbers on the golden pair
 (F08882, 2022-01-11 → 2022-07-22) compare against the 0.3 golden.
 
+## [0.5.8] — release candidate `0.5.8rc1`, 2026-11-02
+
+### Fixed
+- **[product]** Venti `fc8c8f1` (venti-dev #55): invalid pixels no longer count
+  as zeros in the block mean of the loclin fit.
+- **[product]** Venti `fc8c8f1` (venti-dev #57): fit coverage comes from the cells
+  the fit really has, so the coherence power takes effect on dark frames.
+
+Coherence power stays 8, and the frame table stays 0.9-draft. Both fixes change
+values on every frame.
+
+### Benchmark
+Ten frames, per pair, against `t50conf_overlap3`
+(`cal_disp_e2e/t58bench`). Velocity residual against GNSS on gated stations,
+median / RMSE / NMAD in mm/yr. 7 of 10 pass; the double-difference sill falls on
+all ten. Decision record: disp2vlm_validation decision 0007.
+
+| Frame | Verdict | n | 0.5.8 | Baseline | Sill vs baseline |
+|---|---|---|---|---|---|
+| F38238 Houston descending | PASS | 30 | +0.17 / 2.67 / 2.21 | +2.98 / 4.83 / 4.21 | −28% |
+| F36542 Central Valley | PASS | 78 | +0.31 / 3.23 / 3.15 | +1.84 / 4.38 / 3.85 | −10% |
+| F16940 Los Angeles | PASS | 214 | +0.40 / 1.87 / 1.22 | +0.52 / 2.14 / 1.23 | −3% |
+| F08622 New York | PASS | 64 | −0.01 / 0.96 / 0.65 | +0.09 / 1.16 / 0.73 | −36% |
+| F07081 Montana | PASS | 3 | +0.72 / 0.75 / 0.06 | +0.81 / 0.82 / 0.24 | −37% |
+| F16941 Ridgecrest | PASS | 108 | +0.62 / 1.97 / 1.38 | +0.40 / 1.93 / 1.46 | −8% |
+| F35991 Puerto Rico | PASS | 15 | −0.36 / 1.64 / 1.20 | +0.61 / 1.53 / 1.45 | −25% |
+| F08882 Houston ascending | FAIL | 50 | +0.13 / 3.61 / 1.65 | +0.37 / 4.36 / 2.45 | −15% |
+| F08886 Oklahoma City | FAIL | 16 | −0.58 / 1.33 / 1.51 | −0.11 / 1.06 / 1.14 | −24% |
+| F23211 Hawaii | FAIL | 12 | +2.20 / 3.19 / 1.58 | +0.94 / 2.57 / 2.07 | −51% |
+
+### Known limitations
+- **Hawaii (F23211) gets worse at stations.** RMSE +0.62 mm/yr against the
+  baseline (limit 0.2). With #55 alone it is +2.81 / 3.44 / 1.71, so #55 brings
+  the rise and #57 reduces it. TOUO reads +8.5 mm/yr. The cause is not known. The
+  baseline predates stratified tropo; v0.5.3 with stratified tropo on the same
+  stations gives +1.20 / 2.55 / 2.22.
+- **Oklahoma City (F08886) gets worse at stations.** RMSE +0.27 mm/yr (limit 0.2),
+  on 16 stations. With #55 alone it is +0.61 / 1.35 / 0.63, so #55 brings the RMSE
+  rise. #57 does not add to it, but flips the median and widens NMAD to 1.51.
+- **Houston (F08882) subsiding class still fails**: RMSE 3.87 mm/yr against a
+  limit of 2.53. This is better than the 4.97 in decision 0006, but raw (2.35)
+  stays better in this class. The frame's gated statistics improve. No #55-only
+  run exists for this frame.
+- **`regions: separate` can leave small-scale patches.** F44055, one pair, power 4
+  (campaign override, not the packaged table): 10 km high-pass NMAD 0.52 chained
+  against 0.19 velocity-domain. In this benchmark F35991's field is 29% rougher
+  than its baseline by that measure (1.39 against 1.08 mm/yr).
+- **Not in the benchmark:** F00834, F00831, F36008 and F18904, which also change.
+- **Per-pair breaklines are not in this release.** They stay a run-time patch.
+
+### Golden
+Rebuilt in `cal-disp:0.5.8-rc` (`docs/golden/MANIFEST_0.5.8.sha256`). Against 0.5.7,
+in mm: `calibration` median +6.91, p95 |Δ| 20.63, max 57.61; `calibration_std`
+median −0.19, p95 |Δ| 1.58, max 10.71. Other data layers are identical. Text
+differences are the timestamp, the versions and the runconfig. The 0.5.7 golden
+is archived in `test_golden/archive/golden_v0.5.7_20261028/`.
+
 ## [0.5.7] — 2026-10-29 (tag `v0.5.7` on `3425cb2`)
 
 ### Changed
