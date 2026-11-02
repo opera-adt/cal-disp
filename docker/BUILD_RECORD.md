@@ -4,6 +4,7 @@
 |---|---|---|---|---|---|
 | `cal-disp:0.5.4` | 2026-10-22 | aurora (`docker/build-docker-image.sh -t cal-disp:0.5.4`, `--network=host`) | tag `v0.5.4` (`c3e96bb`), version `0.5.4` | 1.28 GB | `sha256:ab025a6ffbacb6389f427f301f7c2eb7b89b8936dc49f9b235ebec69e4539161` |
 | `cal-disp:0.5.7` | 2026-10-29 | aurora (`docker/build-docker-image.sh -t cal-disp:0.5.7`, `--network=host`) | tag `v0.5.7` (`3425cb2`), version `0.5.7` | 1.27 GB | `sha256:d6ae8a816354d7f7cfb5320585c2ae9263d4a49276a89632fbff1659522e5371` |
+| `cal-disp:0.5.8` | 2026-11-02 | aurora (`docker/build-docker-image.sh -t cal-disp:0.5.8`, `--network=host`) | tag `v0.5.8` (`cc86e0b`), version `0.5.8` | 1.27 GB | `sha256:28d7c991253eddb526d98bc206797fe60a81bf240ea58e791c507b86db9e5650` |
 | `cal-disp:0.5.8-rc` | 2026-11-01 | aurora (`docker/build-docker-image.sh -t cal-disp:0.5.8-rc -v 0.5.8rc1`, `--network=host`) | branch `release/0.5.8-fit-block-mean` (`fa0a869`), version `0.5.8rc1` | 1.27 GB | `sha256:19fa6488f3dc004d78cb2366f4820a99dbedabc29b62c65f3d4b78e1eaa69307` |
 | `cal-disp:0.5.7-rc` | 2026-10-28 | aurora (`docker/build-docker-image.sh -t cal-disp:0.5.7-rc -v 0.5.7rc1`, `--network=host`) | branch `release/0.5.7-coastal-regions`, version `0.5.7rc1` | 1.27 GB | `sha256:7bc0eb081018bfc41e9079fd7298e84a2e6e44b23d1047e6bd57bbf3131032ed` |
 | `cal-disp:0.5.6` | 2026-10-25 | aurora (`docker/build-docker-image.sh -t cal-disp:0.5.6`, `--network=host`) | tag `v0.5.6` (`8d96246`), version `0.5.6` | 1.27 GB | `sha256:36e18d977296c87a0dc0cca48f8b9bba9cee7d7f9b5044e090baf08ebc0ca5ee` |
