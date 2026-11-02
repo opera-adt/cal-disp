@@ -83,6 +83,6 @@ changes what a run produces, so they happen together, after the VnV sign-off
 ## 0.5.8 (2026-11-02)
 - [x] Venti `fc8c8f1` (venti-dev #55 and #57); golden rebuilt in `0.5.8-rc`.
 - [x] Ten-frame benchmark: 7 of 10 pass. The failures, F08882, F08886 and F23211, are accepted by the owner for this release (disp2vlm_validation decision 0007; CHANGELOG, "Known limitations").
-- [ ] Tag `v0.5.8` after merge (owner); build `cal-disp:0.5.8` from the tag and validate against the golden.
+- [x] Tag `v0.5.8` on `cc86e0b` (owner, 2026-11-02); image `cal-disp:0.5.8` built from the tag and validated against the golden, peak 5.75 GB (`test_golden/validation_0.5.8_release_image.log`).
 - [ ] Push the image (owner).
 - [ ] cal-vlm-batch: Gulf/East rerun on `cal-disp:0.5.8`.

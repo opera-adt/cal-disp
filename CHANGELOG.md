@@ -3,7 +3,7 @@
 Product-affecting entries are marked **[product]**. Numbers on the golden pair
 (F08882, 2022-01-11 → 2022-07-22) compare against the 0.3 golden.
 
-## [0.5.8] — release candidate `0.5.8rc1`, 2026-11-02
+## [0.5.8] — 2026-11-02 (tag `v0.5.8` on `cc86e0b`)
 
 ### Fixed
 - **[product]** Venti `fc8c8f1` (venti-dev #55): invalid pixels no longer count
