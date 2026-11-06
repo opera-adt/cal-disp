@@ -206,14 +206,34 @@ def _read_external_mask(mask_file: Path, x: np.ndarray, y: np.ndarray) -> np.nda
     an input error rather than a silent resampling, so the PGE notices a mask
     produced for another grid.
     """
+    data = _read_on_disp_grid(mask_file, x, y, ("uint8",))
+    bad = ~np.isin(data, (0, 1))
+    if bad.any():
+        raise ValueError(
+            f"mask_file {mask_file.name}: values must be 0 or 1, found"
+            f" {np.unique(data[bad])[:5].tolist()}"
+        )
+    return data == 1
+
+
+def _read_land_pieces(path: Path, x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Read the runconfig ``land_pieces_file``: integer piece labels, 0 = no piece."""
+    return _read_on_disp_grid(path, x, y, ("uint8", "uint16")).astype(np.uint16)
+
+
+def _read_on_disp_grid(
+    mask_file: Path, x: np.ndarray, y: np.ndarray, dtypes: tuple[str, ...]
+) -> np.ndarray:
+    """Band 1 of a single-band raster that must lie on the DISP grid exactly."""
     with rasterio.open(mask_file) as src:
         if src.count != 1:
             raise ValueError(
                 f"mask_file {mask_file.name}: expected 1 band, got {src.count}"
             )
-        if src.dtypes[0] != "uint8":
+        if src.dtypes[0] not in dtypes:
             raise ValueError(
-                f"mask_file {mask_file.name}: dtype must be uint8, got {src.dtypes[0]}"
+                f"mask_file {mask_file.name}: dtype must be {' or '.join(dtypes)},"
+                f" got {src.dtypes[0]}"
             )
         if src.shape != (len(y), len(x)):
             raise ValueError(
@@ -235,14 +255,7 @@ def _read_external_mask(mask_file: Path, x: np.ndarray, y: np.ndarray) -> np.nda
                 f"mask_file {mask_file.name}: geotransform {tuple(t)[:6]} is not"
                 f" the DISP grid (origin {x0}, {y0}; spacing {dx}, {dy})"
             )
-        data = src.read(1)
-    bad = ~np.isin(data, (0, 1))
-    if bad.any():
-        raise ValueError(
-            f"mask_file {mask_file.name}: values must be 0 or 1, found"
-            f" {np.unique(data[bad])[:5].tolist()}"
-        )
-    return data == 1
+        return src.read(1)
 
 
 def _read_dem_on_grid(dem_file: Path, shape: tuple[int, int]) -> np.ndarray:
@@ -749,6 +762,7 @@ def run_calibration(
     defo_area_db_json: Path | None = None,
     event_db_json: Path | None = None,
     fit_mask_file: Path | None = None,
+    land_pieces_file: Path | None = None,
     mask_file: Path | None = None,
     block_shape: tuple[int, int] = (512, 512),  # noqa: ARG001 — TODO: Dask blocking
     n_workers: int = 4,  # noqa: ARG001 — TODO: Dask parallelisation
@@ -801,6 +815,10 @@ def run_calibration(
         Stable-pixel fit mask (uint8 GeoTIFF on the DISP grid, 1 = may be fit)
         from the runconfig, for masks not packaged in Venti; loclin only and
         exclusive with ``surface.fit_mask``.
+    land_pieces_file : Path, optional
+        Land-piece labels (uint8/uint16 GeoTIFF on the DISP grid, 0 = no
+        piece) for breaklines; required by ``surface.regions = 'pieces'`` and
+        ignored otherwise.
     mask_file : Path, optional
         Runconfig byte mask (uint8, 0 = invalid, 1 = good) on the DISP grid;
         its 0 pixels are excluded from the fit like the product's own masks.
@@ -1190,6 +1208,24 @@ def run_calibration(
             int((~fit_mask & mask).sum()),
             int(mask.sum()),
         )
+    land_pieces = None
+    if venti_options.surface.regions == "pieces":
+        if land_pieces_file is None:
+            raise ValueError(
+                "surface.regions is 'pieces' but no land_pieces_file was given"
+            )
+        land_pieces = _read_land_pieces(Path(land_pieces_file), x, y)
+        logger.info(
+            "land_pieces_file %s: %d pieces",
+            Path(land_pieces_file).name,
+            int(np.unique(land_pieces[land_pieces > 0]).size),
+        )
+    elif land_pieces_file is not None:
+        logger.info(
+            "land_pieces_file %s ignored: surface.regions is %r",
+            Path(land_pieces_file).name,
+            venti_options.surface.regions,
+        )
     try:
         result = calibrate_pair(
             disp_2d,
@@ -1205,6 +1241,7 @@ def run_calibration(
             set_correction=set_component,
             exclude_mask=~event_mask if event_mask is not None else None,
             fit_mask=fit_mask,
+            land_pieces=land_pieces,
             n_jobs=threads_per_worker,
             unwrap_hook=unwrap_hook,
             # the product carries calibration and sigma_CAL only
