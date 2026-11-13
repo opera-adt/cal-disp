@@ -3,6 +3,21 @@
 Product-affecting entries are marked **[product]**. Numbers on the golden pair
 (F08882, 2022-01-11 → 2022-07-22) compare against the 0.3 golden.
 
+## [Unreleased] — 0.5.9 candidate
+
+Defaults and the frame table are unchanged, so no product moves until a frame
+turns the options on.
+
+### Added
+- `static_ancillary_group.land_pieces_file` and `cal-disp config
+  --land-pieces-file` (#44): the per-frame land-piece map for breaklines
+  (Venti `surface.regions = 'pieces'`).
+- Venti `6c16457` (venti-dev #62, #63): land pieces never bridge across water
+  (`venti-land-pieces`), and the island pass, `surface.small_pieces =
+  'offset'`: a labelled piece under `piece_min_pixels` is left out of the frame
+  fit and set onto the GNSS field by one constant. The default `'frame'`
+  reproduces 0.5.8.
+
 ## [0.5.8] — 2026-11-02 (tag `v0.5.8` on `cc86e0b`)
 
 ### Fixed

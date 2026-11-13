@@ -77,6 +77,25 @@ def test_pieces_give_the_split_piece_its_own_surface(
     assert np.nanmax(np.abs(pieces - none)) > 0
 
 
+def test_small_pieces_offset_reaches_venti(
+    tmp_path, sample_disp_product, sample_static_los, sample_unr_data, land_pieces_file
+):
+    """Island pass (Venti surface.small_pieces = 'offset'): the small piece moves."""
+    args = (sample_disp_product, sample_static_los, sample_unr_data)
+    kw = {"regions": "pieces", "piece_min_pixels": 10**9}  # every piece is small
+    frame = _run(
+        tmp_path, "frame", *args, _params(**kw), land_pieces_file=land_pieces_file
+    )
+    offset = _run(
+        tmp_path, "offset", *args, _params(small_pieces="offset", **kw),
+        land_pieces_file=land_pieces_file,
+    )  # fmt: skip
+    none = _run(tmp_path, "none", *args, _params())
+    # the default ('frame') keeps small pieces on the frame surface
+    np.testing.assert_allclose(frame, none, atol=1e-7, equal_nan=True)
+    assert np.nanmax(np.abs(offset - frame)) > 0
+
+
 def test_one_piece_is_the_frame_surface(
     tmp_path, sample_disp_product, sample_static_los, sample_unr_data
 ):
