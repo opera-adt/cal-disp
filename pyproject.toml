@@ -49,7 +49,7 @@ dependencies = [
   # gamma golden, upstream only after the gamma tag). With gamma-equivalent
   # algorithm parameters it must reproduce the golden at 1e-6. The gamma
   # golden was produced with upstream 2a7e61f.
-  "venti @ git+https://github.com/mgovorcin/venti-dev.git@f45eb8d4bb0974fce96ef298381b299b19c9cfa5",
+  "venti @ git+https://github.com/mgovorcin/venti-dev.git@6c164574a5d8fcf83f5096d66fab575a19cdb9fa",
 ]
 
 [project.urls]
