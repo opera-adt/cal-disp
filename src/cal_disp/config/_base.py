@@ -312,6 +312,16 @@ class StaticAncillaryFileGroup(YamlModel):
         ),
     )
 
+    land_pieces_file: OptionalPath = Field(
+        default=None,
+        description=(
+            "Land-piece labels of the frame for breaklines (uint8/uint16 GeoTIFF"
+            " on the DISP grid, 0 = no piece, e.g. from venti-land-pieces)."
+            " Required when surface.regions is 'pieces': each large piece then"
+            " gets a calibration surface of its own"
+        ),
+    )
+
     def has_algorithm_overrides(self) -> bool:
         """Check if algorithm parameter overrides are provided."""
         return self.algorithm_parameters_overrides_json is not None

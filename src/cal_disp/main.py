@@ -115,6 +115,9 @@ def run(
         else None
     )
     fit_mask_file = Path(sta.fit_mask_file) if (sta and sta.fit_mask_file) else None
+    land_pieces_file = (
+        Path(sta.land_pieces_file) if (sta and sta.land_pieces_file) else None
+    )
     event_db = (
         Path(sta.event_database_json) if (sta and sta.event_database_json) else None
     )
@@ -141,6 +144,7 @@ def run(
             defo_area_db_json=defo_area_db,
             event_db_json=event_db,
             fit_mask_file=fit_mask_file,
+            land_pieces_file=land_pieces_file,
             mask_file=Path(dyn.mask_file) if dyn.mask_file is not None else None,
             block_shape=runconfig.worker_settings.block_shape,
             n_workers=runconfig.worker_settings.n_workers,
