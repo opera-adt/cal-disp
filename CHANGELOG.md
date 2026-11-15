@@ -3,7 +3,7 @@
 Product-affecting entries are marked **[product]**. Numbers on the golden pair
 (F08882, 2022-01-11 → 2022-07-22) compare against the 0.3 golden.
 
-## [0.5.9] — release candidate `0.5.9rc1`, 2026-11-14
+## [0.5.9] — 2026-11-14 (tag `v0.5.9` on `a8c76b3`)
 
 Defaults and the frame table are unchanged, so no product moves until a frame
 turns the options on.
