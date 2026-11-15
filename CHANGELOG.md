@@ -3,7 +3,7 @@
 Product-affecting entries are marked **[product]**. Numbers on the golden pair
 (F08882, 2022-01-11 → 2022-07-22) compare against the 0.3 golden.
 
-## [Unreleased] — 0.5.9 candidate
+## [0.5.9] — release candidate `0.5.9rc1`, 2026-11-14
 
 Defaults and the frame table are unchanged, so no product moves until a frame
 turns the options on.
@@ -17,6 +17,16 @@ turns the options on.
   'offset'`: a labelled piece under `piece_min_pixels` is left out of the frame
   fit and set onto the GNSS field by one constant. The default `'frame'`
   reproduces 0.5.8.
+
+### Fixed
+- Venti `6c16457` includes venti-dev #58: when a fit's data cover a small part
+  of the fit grid, the robust weights no longer reject every data pixel, which
+  left a zero surface (30 of 57,004 products in the NA coast campaign: F30716,
+  F33076, two of F43045). It acts only in that case; the golden is identical.
+
+### Golden
+Unchanged: the 0.5.8 golden validates in `cal-disp:0.5.9-rc` at 1e-6, peak
+5.78 GB (`test_golden/validation_0.5.9rc1.log`).
 
 ## [0.5.8] — 2026-11-02 (tag `v0.5.8` on `cc86e0b`)
 
