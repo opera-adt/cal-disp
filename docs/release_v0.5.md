@@ -90,5 +90,5 @@ changes what a run produces, so they happen together, after the VnV sign-off
 ## 0.5.9 (2026-11-14)
 - [x] Venti `6c16457`: breaklines (`surface.regions = 'pieces'`, venti-dev #60, #62), island pass (#63), sparse-fit guard (#58); runconfig `land_pieces_file` (#44). Defaults and the frame table are unchanged, so packaged products do not move; no ten-frame benchmark needed.
 - [x] The 0.5.8 golden validates in `cal-disp:0.5.9-rc` (`test_golden/validation_0.5.9rc1.log`).
-- [ ] Tag `v0.5.9` after merge (owner); build `cal-disp:0.5.9` from the tag and validate against the golden.
+- [x] Tag `v0.5.9` on `a8c76b3` (owner, 2026-11-14); image `cal-disp:0.5.9` built from the tag and validated against the golden, peak 5.72 GB (`test_golden/validation_0.5.9_release_image.log`).
 - [ ] Push the image (owner).
